@@ -1,188 +1,237 @@
-# Grid Battery Control — From Greedy to Risk-Aware MPC
+# Battery Coordination Sandbox — Aggregate Grid Behavior Under Local Control
 
 ## Overview
 
-This project studies how different control strategies manage a battery connected to a power grid with renewable generation.
+This project studies how multiple batteries interacting on the same feeder create aggregate grid behavior.
 
-We compare three approaches:
+The central question is:
 
-- **Greedy baseline** — reacts only to current conditions  
-- **Deterministic MPC** — optimizes over a future horizon  
-- **Uncertainty-aware MPC** — accounts for forecast errors  
+> If many batteries follow simple local charging rules, what happens to the feeder?
 
-The goal is not realism.
+A strategy that looks reasonable for one battery may become harmful when many batteries act together.
 
-The goal is **understanding how control strategies behave under identical conditions**.
+This project explores that coordination problem through simulation.
 
-------
+It compares multiple controller strategies under identical operating conditions and evaluates how aggregate behavior changes across system regimes.
 
-## Core Idea
+This is not a production grid tool.
 
-All controllers use the same data.
+It is an experimental coordination sandbox.
 
-What changes is how they treat the future:
+---
 
-- Greedy → *reactive*
-- MPC → *predictive*
-- Uncertainty-aware MPC → *risk-aware*
+## Core Problem
 
-------
+Distributed energy assets often make local decisions:
 
-## System Setup
+- charge when electricity is cheap
+- charge when surplus exists
+- react independently
 
-- Data: German load, solar, and wind forecasts  
-- Net load:
-  ```
-  net_load = demand − (solar + wind)
-  ```
-- Battery:
-  - Fixed capacity (intentionally small)
-  - Charge/discharge limits
-  - State-of-charge (SOC) dynamics
+Individually, these rules seem sensible.
 
-### Why a small battery?
+Collectively, they can create:
 
-Because it exposes bad control immediately.
+- synchronized peaks
+- feeder overloads
+- large ramp events
+- unstable aggregate behavior
 
-A large battery hides mistakes.  
-A small one forces discipline.
+This project investigates that failure mode.
 
-------
+---
 
-## Controllers
+## System Model
 
-### 1. Greedy Baseline
+The simulated system contains:
 
-Rule-based:
+- multiple batteries
+- shared feeder constraint
+- aggregate demand signal
+- controller coordination logic
 
-- Charge when surplus  
-- Discharge when deficit  
+Each battery has:
 
-No planning. No anticipation.
+- energy capacity
+- charge/discharge power limits
+- state-of-charge dynamics
 
-------
+The focus is intentionally simplified:
 
-### 2. Deterministic MPC
+the goal is to understand coordination behavior, not replicate full grid physics.
 
-Optimizes over a time horizon using forecasted data.
+---
 
-- Looks ahead (e.g. 24 hours)  
-- Minimizes a cost function  
-- Balances battery usage and grid smoothing  
+## Controllers Compared
 
-Key idea: **plan instead of react**
+### 1. Time-of-Use (TOU)
 
-------
+Naive local strategy:
 
-### 3. Uncertainty-Aware MPC
+- batteries charge according to predefined timing logic
+- no awareness of aggregate feeder stress
 
-Extends MPC by incorporating forecast uncertainty.
+Behavior:
+- simple
+- uncoordinated
+- synchronization-prone
 
-- Adds reserve margin  
-- Adjusts decisions based on risk  
-- Acts more conservatively when needed  
+---
 
-Key idea: **plan for error, not just prediction**
+### 2. Randomized TOU
 
-------
+Adds randomness to reduce synchronization.
 
-## What We Tested
+Idea:
 
-All controllers were evaluated on:
+instead of all batteries acting identically, stagger behavior.
 
-- Same dataset  
-- Same battery constraints  
-- Same time horizon  
+Behavior:
+- partially coordinated
+- reduced synchronization
+- inconsistent performance
 
-This ensures **fair comparison**.
+---
 
-------
+### 3. Hard Capped TOU
 
-## Key Findings
+Introduces explicit feeder constraint behavior.
 
-### 1. Greedy fails long-term
+Idea:
 
-- Quickly depletes battery  
-- Cannot react later  
-- Strong short-term, weak overall  
+prevent charging when feeder stress exceeds threshold.
 
-------
+Behavior:
+- stronger overload protection
+- rigid controller response
+- can create tradeoffs elsewhere
 
-### 2. MPC smooths behavior
+---
 
-- Reduces volatility  
-- Preserves battery capacity  
-- Makes consistent decisions  
+### 4. Soft Capped TOU
 
-------
+Continuous coordination strategy.
 
-### 3. Uncertainty-aware MPC changes behavior
+Idea:
 
-- More cautious actions  
-- Earlier adjustments  
-- Accounts for forecast error  
+gradually reduce charging pressure as feeder stress increases.
 
-------
+Behavior:
+- smoother adaptation
+- less abrupt behavior
+- improved coordination under some regimes
 
-## Important Insight
+---
 
-Better control does **not always mean lower cost**.
+## Metrics
 
-Different controllers optimize different objectives:
+Controllers are compared using:
 
-- Greedy → immediate gain  
-- MPC → stability  
-- Risk-aware MPC → robustness  
+### Grid metrics
+- feeder peak load
+- ramp magnitude
+- number of violations
+- total overload severity
 
-Your result depends on what you care about.
+These measure system stress.
 
-------
+---
 
-## Project Structure
+## Experiments
 
-```
-data/
-  processed/        # datasets and results
+The project includes:
 
-src/
-  deterministic_mpc.py
-  uncertainty_aware_mpc.py
+### Baseline comparison
+Direct controller comparison under one scenario.
 
-notebooks/
-  phase_1_...ipynb
-  ...
-  phase_5_...ipynb
-```
+---
 
-------
+### Regime sweeps
+Systematically varying:
+
+- number of batteries
+- feeder limits
+
+to study scaling behavior.
+
+---
+
+### Softness sensitivity
+Testing how soft coordination tuning changes outcomes.
+
+---
+
+### Randomness sensitivity
+Testing how synchronization disruption changes outcomes.
+
+---
 
 ## How to Run
 
 1. Install dependencies:
-```
 pip install -r requirements.txt
-```
+2. Run baseline experiments:
+python3 experiments/basic_run.py
+3. Open notebook for analysis:
+jupyter notebook
+4. Then open:
+notebooks/coordination_comparison.ipynb
 
-2. Run notebooks in order:
-```
+---
+
+## Key Findings
+
+Observed themes:
+
+### Local logic does not scale automatically
+Rules that seem harmless for one battery can create harmful aggregate behavior.
+
+---
+
+### Coordination quality is regime-dependent
+A controller that performs well in light stress may degrade under harder conditions.
+
+There is no universally best strategy.
+
+---
+
+### Randomness helps, but inconsistently
+Breaking synchronization can reduce some stress metrics but does not guarantee robust performance.
+
+---
+
+### Soft coordination can outperform rigid logic
+Continuous adaptation often improves aggregate behavior compared to abrupt threshold rules.
+
+---
+
+## Repository Structure
+
+```text
+src/
+  battery.py
+  controllers.py
+  simulator.py
+
+experiments/
+  basic_run.py
+
 notebooks/
-```
+  coordination_comparison.ipynb
 
-3. Outputs are saved in:
-```
-data/processed/
-```
+results/
+  basic_run_results.csv
+  softness_sweep_results.csv
+  randomness_sweep_results.csv
 
-------
+--- 
 
-## Final Note
+## Future Direction 
 
-This is not a production system.
+Planned extensions include:
 
-It is a **control experiment**.
-
-The point is simple:
-
-> Different ways of thinking about the future lead to fundamentally different system behavior.
-
-And that’s the whole game.
+* EV charging demand
+* PV generation
+* multi-asset coordination
+* uncertainty-aware strategies
+* richer distributed energy resource coordination experiments
