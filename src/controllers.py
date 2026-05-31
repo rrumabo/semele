@@ -171,3 +171,71 @@ def aggregate_requests(requests: List[float]) -> float:
     """
 
     return sum(requests)
+
+# -------------------------------------------------
+# LOCAL-AWARE CONTROLLER  (information level: local)
+# -------------------------------------------------
+ 
+def local_aware_controller(
+    price: float,
+    low_threshold: float,
+    high_threshold: float,
+    max_power_kw: float,
+    soc: float = 0.5,
+    **_ignored,
+) -> float:
+    """
+    TOU controller that scales aggressiveness based on own SoC.
+ 
+    No feeder awareness. No neighbour awareness.
+    The only extra information is the agent's own state.
+ 
+    Charging:    scale by available room  (1 - soc).  Near-full  → charge softly.
+    Discharging: scale by available energy (soc).     Near-empty → discharge softly.
+    """
+    base_request = tou_controller(price, low_threshold, high_threshold, max_power_kw)
+ 
+    if base_request < 0.0:          # charging request
+        return base_request * (1.0 - soc)
+ 
+    if base_request > 0.0:          # discharging request
+        return base_request * soc
+ 
+    return 0.0
+ 
+ 
+# -------------------------------------------------
+# NEIGHBOURHOOD CONTROLLER  (information level: neighborhood)
+# -------------------------------------------------
+ 
+def neighborhood_controller(
+    price: float,
+    low_threshold: float,
+    high_threshold: float,
+    max_power_kw: float,
+    neighbor_avg_kw: float = 0.0,
+    **_ignored,
+) -> float:
+    """
+    TOU controller that scales back when neighbours are charging.
+ 
+    No direct feeder visibility.
+    The only system signal is neighbours' average power from the previous timestep.
+ 
+    If neighbours charged hard last step → scale back own charge this step.
+    Scale: 1.0 when neighbours were idle, 0.0 when neighbours charged at full power.
+ 
+    Discharge behaviour is unchanged — only charging is modulated.
+    """
+    base_request = tou_controller(price, low_threshold, high_threshold, max_power_kw)
+ 
+    # Only modulate charging (charging is what creates feeder stress).
+    if base_request >= 0.0:
+        return base_request
+ 
+    # How hard were neighbours charging? (negative avg → charging)
+    neighbour_charge_pressure = max(0.0, -neighbor_avg_kw) / max_power_kw
+    scale = max(0.0, 1.0 - neighbour_charge_pressure)
+ 
+    return base_request * scale
+ 

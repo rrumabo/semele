@@ -1,237 +1,89 @@
-# Battery Coordination Sandbox — Aggregate Grid Behavior Under Local Control
+# Battery Coordination Sandbox
 
-## Overview
+## What this is
 
-This project studies how multiple batteries interacting on the same feeder create aggregate grid behavior.
+A simulation study of how multiple batteries sharing a feeder create aggregate behavior that no individual battery intended.
 
-The central question is:
+The central question:
 
-> If many batteries follow simple local charging rules, what happens to the feeder?
+> When many batteries follow simple local rules, what happens to the grid?
 
-A strategy that looks reasonable for one battery may become harmful when many batteries act together.
-
-This project explores that coordination problem through simulation.
-
-It compares multiple controller strategies under identical operating conditions and evaluates how aggregate behavior changes across system regimes.
-
-This is not a production grid tool.
-
-It is an experimental coordination sandbox.
+This is not a grid tool. It is an experimental sandbox for studying coordination failure.
 
 ---
 
-## Core Problem
+## What Phase 1 showed
 
-Distributed energy assets often make local decisions:
+Four controllers were compared across multiple system regimes (light, medium, hard feeder stress):
 
-- charge when electricity is cheap
-- charge when surplus exists
-- react independently
+- **TOU** — naive local dispatch. Causes strong synchronization and the worst feeder peaks.
+- **Randomized TOU** — breaks synchronization partially, but effect is fragile and regime-dependent.
+- **Hard Capped TOU** — suppresses overloads abruptly. Best for peak and ramp in hard regimes, but rigid.
+- **Soft Capped TOU** — scales battery response continuously with feeder stress. Most balanced overall.
 
-Individually, these rules seem sensible.
+### Key findings
 
-Collectively, they can create:
-
-- synchronized peaks
-- feeder overloads
-- large ramp events
-- unstable aggregate behavior
-
-This project investigates that failure mode.
+1. Local rationality does not scale. Rules that seem harmless for one battery can be harmful for many.
+2. Controller performance is regime-dependent. No single strategy dominates across all conditions.
+3. Soft coordination outperforms randomization because its parameter has structured, predictable effects.
+4. In hard regimes, simple controllers do not eliminate failure — they reshape how the system fails.
+5. Violation count is a misleading metric. Total excess is more informative under stress.
 
 ---
 
-## System Model
+## What Phase 2 showed
 
-The simulated system contains:
+**Question:** How much information does an agent need before its local behavior stops being harmful?
 
-- multiple batteries
-- shared feeder constraint
-- aggregate demand signal
-- controller coordination logic
+Four information levels were tested, each mapped to a controller:
 
-Each battery has:
+- **None** — price signal only (TOU)
+- **Local** — own state only (SoC-proportional scaling)
+- **Neighborhood** — average of k neighbours' previous actions
+- **Global** — full feeder load (soft capped TOU)
 
-- energy capacity
-- charge/discharge power limits
-- state-of-charge dynamics
+Tested across a 2×2 robustness design:
 
-The focus is intentionally simplified:
+|                       | Deterministic prices | Stochastic prices |
+|-----------------------|---------------------|-------------------|
+| **Uniform SoC**       | ✓                   | ✓                 |
+| **Heterogeneous SoC** | ✓                   | ✓                 |
 
-the goal is to understand coordination behavior, not replicate full grid physics.
+Neighborhood size was additionally swept from 1 to n−1 (full fleet visibility).
 
----
+### Key findings
 
-## Controllers Compared
+1. **Neighborhood information provides zero benefit at every scale.** Peak reduction was 0% of baseline across all regimes, all configurations, and all neighborhood sizes from 1 to 19. The failure is not about how many peers you observe — it is about the nature of the signal. Lagged peer actions do not approximate real-time feeder state regardless of fleet coverage.
 
-### 1. Time-of-Use (TOU)
+2. **Local self-awareness reduces peak by ~25% under predictable prices, ~13% under stochastic prices.** The SoC-proportional mechanism works by natural self-limiting — batteries that are nearly full charge less aggressively. Effectiveness depends on predictable price structure to build consistent SoC patterns.
 
-Naive local strategy:
+3. **Global feeder visibility is robust to price uncertainty and gets stronger under stochastic prices.** Peak reduction holds at 40–46% in medium and hard regimes regardless of price structure, because the controller responds directly to system stress rather than inferring it through price signals.
 
-- batteries charge according to predefined timing logic
-- no awareness of aggregate feeder stress
+4. **The type of information matters more than the quantity.** Direct measurement of the system variable you care about (feeder load) is more robust than indirect inference through individual state (SoC). Neighbourhood information — neither direct nor individual — adds nothing.
 
-Behavior:
-- simple
-- uncoordinated
-- synchronization-prone
+5. **The original hypothesis was wrong in an interesting way.** Most benefit does not come from minimal information sharing. It comes from the right kind of information. Minimal sharing (neighbourhood) failed entirely; individual state (local) gave partial benefit; only system-level visibility (global) gave consistent results.
 
 ---
 
-### 2. Randomized TOU
+## Structure
 
-Adds randomness to reduce synchronization.
+```
+src/              battery, controllers, simulator
+experiments/      basic_run.py, information_sweep.py, neighborhood_size_sweep.py
+notebooks/        coordination_comparison.ipynb
+results/          csv outputs per configuration
+```
 
-Idea:
+## Run
 
-instead of all batteries acting identically, stagger behavior.
-
-Behavior:
-- partially coordinated
-- reduced synchronization
-- inconsistent performance
-
----
-
-### 3. Hard Capped TOU
-
-Introduces explicit feeder constraint behavior.
-
-Idea:
-
-prevent charging when feeder stress exceeds threshold.
-
-Behavior:
-- stronger overload protection
-- rigid controller response
-- can create tradeoffs elsewhere
-
----
-
-### 4. Soft Capped TOU
-
-Continuous coordination strategy.
-
-Idea:
-
-gradually reduce charging pressure as feeder stress increases.
-
-Behavior:
-- smoother adaptation
-- less abrupt behavior
-- improved coordination under some regimes
-
----
-
-## Metrics
-
-Controllers are compared using:
-
-### Grid metrics
-- feeder peak load
-- ramp magnitude
-- number of violations
-- total overload severity
-
-These measure system stress.
-
----
-
-## Experiments
-
-The project includes:
-
-### Baseline comparison
-Direct controller comparison under one scenario.
-
----
-
-### Regime sweeps
-Systematically varying:
-
-- number of batteries
-- feeder limits
-
-to study scaling behavior.
-
----
-
-### Softness sensitivity
-Testing how soft coordination tuning changes outcomes.
-
----
-
-### Randomness sensitivity
-Testing how synchronization disruption changes outcomes.
-
----
-
-## How to Run
-
-1. Install dependencies:
+```bash
 pip install -r requirements.txt
-2. Run baseline experiments:
+
+# Phase 1
 python3 experiments/basic_run.py
-3. Open notebook for analysis:
-jupyter notebook
-4. Then open:
-notebooks/coordination_comparison.ipynb
+jupyter notebook notebooks/coordination_comparison.ipynb
 
----
-
-## Key Findings
-
-Observed themes:
-
-### Local logic does not scale automatically
-Rules that seem harmless for one battery can create harmful aggregate behavior.
-
----
-
-### Coordination quality is regime-dependent
-A controller that performs well in light stress may degrade under harder conditions.
-
-There is no universally best strategy.
-
----
-
-### Randomness helps, but inconsistently
-Breaking synchronization can reduce some stress metrics but does not guarantee robust performance.
-
----
-
-### Soft coordination can outperform rigid logic
-Continuous adaptation often improves aggregate behavior compared to abrupt threshold rules.
-
----
-
-## Repository Structure
-
-```text
-src/
-  battery.py
-  controllers.py
-  simulator.py
-
-experiments/
-  basic_run.py
-
-notebooks/
-  coordination_comparison.ipynb
-
-results/
-  basic_run_results.csv
-  softness_sweep_results.csv
-  randomness_sweep_results.csv
-
---- 
-
-## Future Direction 
-
-Planned extensions include:
-
-* EV charging demand
-* PV generation
-* multi-asset coordination
-* uncertainty-aware strategies
-* richer distributed energy resource coordination experiments
+# Phase 2
+python3 experiments/information_sweep.py
+python3 experiments/neighborhood_size_sweep.py
+```

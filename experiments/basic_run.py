@@ -2,6 +2,8 @@ import random
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.battery import Battery
 from src.controllers import randomized_tou_controller, tou_controller
