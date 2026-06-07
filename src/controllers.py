@@ -239,3 +239,28 @@ def neighborhood_controller(
  
     return base_request * scale
  
+
+# -------------------------------------------------
+# DROOP CONTROLLER (Phase 4 — frequency response)
+# -------------------------------------------------
+
+def droop_controller(
+    omega: float = 50.0,
+    omega_nominal: float = 50.0,
+    droop_gain: float = 1.0,
+    max_power_kw: float = 10.0,
+    **_ignored,
+) -> float:
+    """
+    Responds to frequency deviation.
+
+    When frequency drops below nominal → discharge (positive power).
+    When frequency rises above nominal → charge (negative power).
+    Response is proportional to deviation, clipped to max power.
+
+    droop_gain: how aggressively the battery responds.
+                higher = faster response = more synthetic inertia.
+    """
+    delta_omega = omega - omega_nominal
+    requested_kw = -droop_gain * delta_omega
+    return float(max(-max_power_kw, min(requested_kw, max_power_kw)))

@@ -65,11 +65,59 @@ Neighborhood size was additionally swept from 1 to n−1 (full fleet visibility)
 
 ---
 
+## What Phase 3 showed
+
+**Question:** Can a system be globally optimal and locally unjust at the same time — and does that injustice require anyone to have intended it?
+
+Ten identical batteries. Same charging desire. Same controller. Same day. Only feeder position differs.
+
+End-of-line batteries face a tighter local constraint — not because a regulator decided to penalize them, but because the physics of the feeder makes their section harder to serve. The controller responds to that physics correctly. The aggregate system is optimal. The distribution of burden is not.
+
+### Key findings
+
+1. **Optimal aggregate outcomes do not imply fair individual outcomes.** In the medium regime, the near-source battery bore 0% of total curtailment. The end-of-line battery bore 33.8% — 3.4× its proportional share. Every battery wanted the same thing. Position determined who was denied.
+
+2. **In hard regimes, end-of-line batteries are completely blocked.** Batteries at positions 0.8–1.0 charged nothing. Batteries near the source charged freely. The system managed feeder stress correctly. Three identical agents were systematically excluded.
+
+3. **The injustice emerged from the rules, not from malice.** No controller decided to penalize end-of-line batteries. The asymmetry was produced automatically by the interaction of physical constraints and a locally rational coordination mechanism. This is the same structure as pricing outcomes in real distribution grids — households in constrained areas see worse returns on solar investment not because of policy intent but because uniform tariffs ignore physical asymmetry.
+
+4. **This system is complex but not yet chaotic.** The transition to sensitive-initial-condition behavior would require adaptive or memory-based agents and is an open question for future work.
+
+### The broader implication
+
+Prices that look punitive, returns on investment that seem unfair, curtailment that falls on the same households repeatedly — these can be fully explained by physical mechanism and mathematical emergence, with no human malice or deliberate policy required.
+
+---
+
+## What Phase 4 showed
+
+**Question:** Can distributed battery droop control produce collective frequency stability — and what governs the boundary between stability and collapse?
+
+Droop control makes each battery respond to frequency deviation: discharge when frequency drops, charge when it rises. No central coordinator. No communication between agents. Each battery acts on one local signal.
+
+The simulator was extended with the swing equation to track grid frequency as an evolving state variable. Two sweeps were run: stability boundary (M × droop_gain) and disturbance response (disturbance_size × droop_gain at fixed M=10).
+
+### Key findings
+
+1. **Stability is governed by the ratio M/droop_gain, not M or droop_gain independently.** The stability condition is approximately M/droop_gain ≥ 5. Below this ratio frequency diverges. Above it, deviation stays within 1 Hz of nominal.
+
+2. **Droop alone cannot replace inertia — this is not well defined.** Setting M=0 produces division by zero in the swing equation. Inertia creates the frequency signal that droop reads. They are not alternatives; they are dependent. Removing inertia completely leaves droop with nothing to respond to.
+
+3. **Droop gain 1.0 is the consistent optimum at M=10.** Across all disturbance sizes tested (5–25 kW), droop=1.0 produced the lowest frequency standard deviation. Lower gains are too passive; higher gains push the system toward instability.
+
+4. **The stability boundary is robust to disturbance size but sensitive to disturbance timing.** The same droop gain that survives a 25 kW drop at t19 nearly fails under a 20 kW drop at t11. Earlier disturbances leave less recovery time. Timing interacts with droop gain in ways disturbance size alone does not predict.
+
+5. **Best stable configuration found: M=50, droop=2 → frequency std=0.053 Hz.** Most aggressive stable configuration: M=30, droop=5 → std=0.165 Hz.
+
+---
+
 ## Structure
 
 ```
 src/              battery, controllers, simulator
-experiments/      basic_run.py, information_sweep.py, neighborhood_size_sweep.py
+experiments/      basic_run.py, information_sweep.py,
+                  neighborhood_size_sweep.py, fairness_sweep.py,
+                  frequency_sweep.py, disturbance_sweep.py
 notebooks/        coordination_comparison.ipynb
 results/          csv outputs per configuration
 ```
@@ -86,4 +134,11 @@ jupyter notebook notebooks/coordination_comparison.ipynb
 # Phase 2
 python3 experiments/information_sweep.py
 python3 experiments/neighborhood_size_sweep.py
+
+# Phase 3
+python3 experiments/fairness_sweep.py
+
+# Phase 4
+python3 experiments/frequency_sweep.py
+python3 experiments/disturbance_sweep.py
 ```
