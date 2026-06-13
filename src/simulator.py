@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 from src.battery import Battery
+from src.network import Network
 
 
 @dataclass
@@ -10,6 +11,7 @@ class SimulationResult:
 
     aggregate_load_kw:           np.ndarray
     aggregate_battery_power_kw:  np.ndarray
+    per_battery_power_kw:        np.ndarray
     feeder_violations:           np.ndarray
     per_battery_curtailment_kwh: np.ndarray
     per_battery_requested_kwh:   np.ndarray
@@ -31,6 +33,9 @@ def run_simulation(
     M:                 float = 0.0,
     omega_nominal:     float = 50.0,
     generation_kw                = 0.0,
+    rho_agents:        float = 0.0,   # correlation of forecast errors across agents
+    forecast_error_sigma_kw: float = 5.0,
+    network:           Network | None = None,
 ) -> SimulationResult:
     """
     Simulate one battery fleet under a shared or per-battery controller.
@@ -46,6 +51,11 @@ def run_simulation(
     if positions is None:
         positions = [0.0] * n_batteries
 
+    if not 0.0 <= rho_agents <= 1.0:
+        raise ValueError("rho_agents must be in [0, 1]")
+    if forecast_error_sigma_kw < 0.0:
+        raise ValueError("forecast_error_sigma_kw must be non-negative")
+
     # Normalise controller to a list — one entry per battery
     if callable(controller):
         controllers = [controller] * n_batteries
@@ -58,9 +68,22 @@ def run_simulation(
     else:
         generation_array = np.asarray(generation_kw, dtype=float)
 
-    aggregate_load          = np.zeros(n_steps)
-    aggregate_battery_kw    = np.zeros(n_steps)
-    feeder_violations       = np.zeros(n_steps, dtype=bool)
+    # Correlated noise decomposition
+    # noise_i(t) = sqrt(rho) * Z(t) + sqrt(1-rho) * eps_i(t)
+    # Z(t) = common shock shared by all agents
+    # eps_i(t) = private noise, independent across agents
+    Z = np.random.normal(0, 1, n_steps)                  # common shock
+    eps = np.random.normal(0, 1, (n_steps, n_batteries)) # private noise
+    correlated_noise = (
+        np.sqrt(rho_agents) * Z[:, None]
+        + np.sqrt(1 - rho_agents) * eps
+    )
+    correlated_noise *= forecast_error_sigma_kw
+
+    aggregate_load            = np.zeros(n_steps)
+    aggregate_battery_kw      = np.zeros(n_steps)
+    per_battery_power_history = np.zeros((n_steps, n_batteries))
+    feeder_violations         = np.zeros(n_steps, dtype=bool)
     per_battery_curtailment = np.zeros(n_batteries)
     per_battery_requested   = np.zeros(n_batteries)
     omega_history           = np.zeros(n_steps)
@@ -81,9 +104,18 @@ def run_simulation(
 
         for i, battery in enumerate(batteries):
 
-            neighbour_idx   = [(i + j) % n_batteries for j in range(1, neighborhood_size + 1)]
-            neighbor_avg_kw = float(np.mean(prev_actions[neighbour_idx]))
-            local_limit_kw  = feeder_limit_kw * (1.0 - positions[i] * position_alpha)
+            if network is not None:
+                neighbour_idx = network.agents[i].neighbors
+            else:
+                neighbour_idx = [(i + j) % n_batteries for j in range(1, neighborhood_size + 1)]
+
+            neighbor_avg_kw = (
+                float(np.mean(prev_actions[neighbour_idx]))
+                if len(neighbour_idx) > 0
+                else 0.0
+            )
+            local_limit_kw    = feeder_limit_kw * (1.0 - positions[i] * position_alpha)
+            perceived_load_kw = base_load_kw + float(correlated_noise[t, i])
 
             requested_kw = controllers[i](
                 price           = float(prices[t]),
@@ -91,7 +123,7 @@ def run_simulation(
                 high_threshold  = high_threshold,
                 max_power_kw    = battery.max_charge_kw,
                 soc             = battery.soc,
-                feeder_load_kw  = base_load_kw,
+                feeder_load_kw  = perceived_load_kw,
                 feeder_limit_kw = local_limit_kw,
                 neighbor_avg_kw = neighbor_avg_kw,
                 omega           = omega,
@@ -116,6 +148,7 @@ def run_simulation(
                 per_battery_requested[i]   += desired_energy
                 per_battery_curtailment[i] += curtailed_energy
 
+        per_battery_power_history[t, :] = np.array(battery_powers)
         prev_actions     = np.array(battery_powers)
         total_battery_kw = float(sum(battery_powers))
         feeder_load_kw   = base_load_kw - total_battery_kw
@@ -129,6 +162,7 @@ def run_simulation(
     return SimulationResult(
         aggregate_load_kw           = aggregate_load,
         aggregate_battery_power_kw  = aggregate_battery_kw,
+        per_battery_power_kw        = per_battery_power_history,
         feeder_violations           = feeder_violations,
         per_battery_curtailment_kwh = per_battery_curtailment,
         per_battery_requested_kwh   = per_battery_requested,
