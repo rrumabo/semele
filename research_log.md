@@ -84,3 +84,30 @@ Star: most robust — hub dampens leader influence.
 
 Key finding: topology determines HOW leaders affect the system,
 not WHETHER leaders exist.
+
+Phase 7 — rho_agents sweep (price signal corruption):
+
+Question: What is the critical belief correlation rho_c above which
+topology can no longer prevent synchronization collapse?
+
+Setup: 30 batteries, tou_controller, price noise sigma=20 kW,
+rho_agents swept 0→1, 20 runs per point, 4 topologies.
+
+Finding — rho_c ordering:
+  small_world  0.21
+  legacy_ring  0.26
+  linear       0.26
+  star         0.32
+
+Topology modulates rho_c. Small-world collapses first — shortcuts
+accelerate belief propagation. Star resists longest — hub mediation
+delays onset — but collapses most completely at rho=1.0 (~92% drop).
+
+Decline is gradual, not a sharp phase transition. Consistent with
+common noise synchronization literature (no Kuramoto-style cliff).
+
+rho_c_failure = None throughout. Feeder failure layer not yet exposed.
+TOU controller has no feeder awareness — next step adds it.
+
+Conjecture: rho_c scales with spectral gap of the topology graph.
+Faster mixing → earlier collapse.

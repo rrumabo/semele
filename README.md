@@ -91,10 +91,66 @@ We replaced the linear feeder with general graphs (linear chain, star and Watts�
 
 These results caution against naive application of consensus theories: the 'correct' value of k depends on the network’s spectral properties, and heterogeneity can destabilise even otherwise stable networks.
 
+## Phase 7 – Correlated Belief and Synchronisation Collapse
+
+**Question:** What is the critical belief correlation ρ_c above which
+topology can no longer prevent synchronisation-driven collective failure?
+
+We introduced a second noise channel: each agent receives a corrupted
+price signal rather than the true market price. The corruption is
+decomposed into a shared component (common shock Z(t), scaled by
+ρ_agents) and a private component (independent noise ε_i). At ρ_agents = 0
+each agent has fully private forecast error; at ρ_agents = 1 all agents
+share the same mistaken belief about the price. We swept ρ_agents from
+0 to 1 across four topologies with 30 batteries and 20 runs per point.
+
+**Key findings:**
+
+1. **Topology modulates ρ_c.** The critical correlation at which
+synchronisation collapse begins depends on network structure:
+small-world collapses first (ρ_c ≈ 0.21), legacy ring and linear
+chain follow (ρ_c ≈ 0.26), and the star resists longest (ρ_c ≈ 0.32).
+Topologies with faster information mixing are more vulnerable to
+correlated belief.
+
+2. **Star topology delays onset but amplifies collapse.** The hub
+structure mediates neighbour signals and postpones the synchronisation
+threshold. However, once the threshold is crossed, the star collapses
+more completely than other topologies — reaching near-zero agent
+diversity at ρ_agents = 1.0. Resistance and catastrophic collapse
+are two sides of the same hub-mediation mechanism.
+
+3. **The decline is gradual, not a sharp phase transition.** Unlike
+Kuramoto-style synchronisation, there is no abrupt cliff in the
+sync-index curve. Diversity erodes continuously from ρ = 0 to ρ = 1,
+with the 2σ threshold capturing onset rather than full collapse.
+This is consistent with common-noise synchronisation theory, where
+shared external forcing degrades independence incrementally rather
+than triggering a sudden bifurcation.
+
+4. **Feeder failure was not observed in this phase.** The TOU
+controller used here has no feeder awareness; synchronised action
+does not yet translate into measurable grid violations. Exposing
+the downstream failure layer requires a feeder-aware controller —
+the subject of the next phase.
+
+**Conjecture:** ρ_c scales with the spectral gap of the topology graph.
+Faster mixing accelerates belief propagation and lowers the threshold
+for collective synchronisation. Formal verification of this conjecture
+requires analysis of the McKean–Vlasov system under common noise — an
+open problem.
+
 ## Discussion and Outlook
 
-Across all phases, a common pattern emerges: the interplay between local rules and global constraints is nontrivial. Local rationality cannot be assumed to scale safely. The quality of information is more important than its quantity; measuring the right variable (feeder load, frequency) is more effective than inferring it indirectly (peer actions, prices). Fairness is not a natural byproduct of optimality; physical asymmetries produce persistent injustice unless explicitly addressed. And stability depends on the structure of interactions: network topology, inertial constants and control gains interact in complex ways.
-
-Several avenues remain open for investigation. How do adaptive or learning controllers affect stability and fairness? What happens when communication delays or measurement noise are introduced? Can heterogeneity in battery capacity, price elasticity or response time produce more intricate patterns? How robust are these findings when moving from stylised feeders to realistic three-phase distribution networks?
-
-The Battery Coordination Sandbox is intended as a starting point for such inquiries. It deliberately strips away extraneous complexity to expose fundamental interactions. By embracing a critical and epistemic stance—celebrating negative results and questioning assumptions—we hope to foster a more rigorous understanding of distributed energy systems.
+A new direction has emerged from Phase 7. The central question is no
+longer only what happens when agents share information, but what happens
+when they share the same mistaken belief. Correlated forecast errors —
+arising naturally from shared weather APIs, common aggregators, or
+synchronised market signals — act as a hidden coordination mechanism.
+Each agent behaves rationally given its belief; the collective failure
+is a property of the belief structure, not of any individual decision.
+This connects the sandbox to recent work on mean-field games for
+distributed storage (Al Dandachly et al., 2026), which proves
+equilibrium existence under independent private noise but leaves the
+correlated noise regime open. The sandbox provides the first empirical
+map of that regime.
