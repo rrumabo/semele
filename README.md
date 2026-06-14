@@ -2,17 +2,43 @@
 
 ## Abstract
 
-This document describes an ongoing simulation study designed to probe the epistemic foundations of coordination among distributed batteries. The central question is deliberately broad and fundamental:
+A simulation study of how multiple batteries sharing a feeder create
+aggregate behavior that no individual battery intended.
 
-> **When many agents follow simple local rules, what aggregate behaviour emerges and why?**
+The central question:
 
-The work does not present a grid-control tool nor a ready-to-deploy algorithm. Instead, it offers a controlled environment—a sandbox—in which to examine collective phenomena. By varying information flows, physical constraints and control strategies, we seek to expose the limits of local rationality and to make explicit the conditions under which rational local actions produce unintended global outcomes. Throughout this document we favour clarity over marketing, highlight failure modes as well as successes, and openly discuss the epistemic uncertainties that remain.
+> When many batteries follow simple local rules, what happens to the grid?
+
+This is not a grid tool. It is an experimental sandbox for studying
+coordination failure.
 
 ## Introduction
 
-Most research on smart battery coordination assumes each battery makes decisions based on its own private information. In the mean-field game framework — the current mathematical standard for large populations of interacting agents — private noise terms average out as fleet size grows, leaving a clean deterministic trajectory. This is the law of large numbers doing its work: independent errors cancel. In practice, batteries increasingly rely on shared forecast services — the same weather API, the same price signal, the same aggregator. This creates correlated beliefs: the noise decomposition becomes:
-ξi(t)=ρ Z(t)+1−ρ εi(t)\xi_i(t) = \sqrt{\rho}\, Z(t) + \sqrt{1-\rho}\, \varepsilon_i(t)ξi​(t)=ρ​Z(t)+1−ρ​εi​(t)
-where Z(t) is a common shock shared by all agents and ε_i is private. As ρ increases, the common component no longer averages out — it accumulates. We study what happens to a fleet of batteries as ρ increases from zero to one. We find a critical threshold ρ_c above which agent diversity collapses — batteries stop acting differently and start acting as one. That threshold depends on local network topology: star topology resists collapse longest but falls hardest once it goes; small-world topology collapses earliest but provides the largest buffer before actual feeder overload. The gap between when diversity collapses and when the grid actually fails — the protection window — varies by a factor of four across topologies. The standard MFG framework proves equilibrium existence at ρ = 0 but is silent for ρ > 0. We provide the first empirical map of that regime.
+Most research on smart battery coordination assumes each battery makes
+decisions based on its own private information. In the mean-field game
+framework — the current mathematical standard for large populations of
+interacting agents — private noise terms average out as fleet size grows,
+leaving a clean deterministic trajectory. This is the law of large numbers
+doing its work: independent errors cancel.
+
+In practice, batteries increasingly rely on shared forecast services —
+the same weather API, the same price signal, the same aggregator. This
+creates correlated beliefs: the noise decomposition becomes
+
+    ξ_i(t) = √ρ · Z(t) + √(1−ρ) · ε_i(t)
+
+where Z(t) is a common shock shared by all agents and ε_i is private.
+As ρ increases, the common component no longer averages out — it accumulates.
+
+This project studies what happens to a fleet of batteries as ρ increases
+from zero to one. It is not a grid tool. It is an experimental sandbox
+for studying how correlated belief becomes collective failure.
+
+The central question:
+
+> When many individually rational agents share the same mistaken belief,
+> what happens to the grid — and what governs the threshold?
+
 ## Phase 1 – Controllers under Stress
 
 **Question:** How do different local control strategies perform under varying degrees of feeder stress?
