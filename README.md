@@ -1,4 +1,4 @@
-# Battery Coordination Sandbox: Exploring Emergent Dynamics in Distributed Energy Systems
+# Lambyris: Exploring Emergent Dynamics in Distributed Energy Systems
 
 ## Abstract
 
@@ -10,10 +10,9 @@ The work does not present a grid-control tool nor a ready-to-deploy algorithm. I
 
 ## Introduction
 
-Distributed energy resources promise autonomy and flexibility, yet they also introduce unprecedented collective dynamics. A battery owner may act rationally based on local price signals, but when many such agents act simultaneously, their combined behaviour can stress the feeder, destabilise the grid, or impose unfair burdens on specific participants. Traditional simulations often gloss over these emergent effects. In contrast, this sandbox deliberately isolates simple mechanisms to observe how they interact. The philosophy guiding this project is that complexity emerges from composition, and careful scientific inquiry must identify which aspects of that composition matter.
-
-To that end, we progress through a series of phases, each asking a focused question. We use stylised controllers, simplified feeders and controlled disturbances to ensure that any observed behaviour can be traced back to specific assumptions. The results are discussed critically: when a hypothesis fails, we treat the failure as a finding rather than a setback. Metrics are chosen for interpretability—e.g., total excess power over a constraint is more informative than simply counting violations—and we resist the temptation to declare a single 'best' solution.
-
+Most research on smart battery coordination assumes each battery makes decisions based on its own private information. In the mean-field game framework — the current mathematical standard for large populations of interacting agents — private noise terms average out as fleet size grows, leaving a clean deterministic trajectory. This is the law of large numbers doing its work: independent errors cancel. In practice, batteries increasingly rely on shared forecast services — the same weather API, the same price signal, the same aggregator. This creates correlated beliefs: the noise decomposition becomes:
+ξi(t)=ρ Z(t)+1−ρ εi(t)\xi_i(t) = \sqrt{\rho}\, Z(t) + \sqrt{1-\rho}\, \varepsilon_i(t)ξi​(t)=ρ​Z(t)+1−ρ​εi​(t)
+where Z(t) is a common shock shared by all agents and ε_i is private. As ρ increases, the common component no longer averages out — it accumulates. We study what happens to a fleet of batteries as ρ increases from zero to one. We find a critical threshold ρ_c above which agent diversity collapses — batteries stop acting differently and start acting as one. That threshold depends on local network topology: star topology resists collapse longest but falls hardest once it goes; small-world topology collapses earliest but provides the largest buffer before actual feeder overload. The gap between when diversity collapses and when the grid actually fails — the protection window — varies by a factor of four across topologies. The standard MFG framework proves equilibrium existence at ρ = 0 but is silent for ρ > 0. We provide the first empirical map of that regime.
 ## Phase 1 – Controllers under Stress
 
 **Question:** How do different local control strategies perform under varying degrees of feeder stress?
