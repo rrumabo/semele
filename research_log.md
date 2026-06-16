@@ -27,7 +27,7 @@ Adaptive and memory-based agents are deliberately excluded.
 Sensitivity to initial conditions and attractor identification
 are open questions for future work.
 
-Phase 4 — Part 1: frequency_sweep
+Phase 4A: frequency_sweep
 Question: what is the stability boundary in M × droop_gain space?
 Method: sweep M=[6-50] × droop_gain=[0.5-10].
 Finding: stability condition is approximately M/droop_gain ≥ 5.
@@ -35,7 +35,7 @@ Below this ratio: frequency diverges (hits ±5 Hz clamp).
 Above this ratio: frequency deviation stays within 1 Hz of nominal.
 Best stable config: M=50, droop=2 → std=0.053 Hz.
 
-Phase 4 — Part 2:
+Phase 4B:
 M=0 with droop is not well defined — division by zero in the swing equation.
 Droop requires inertia to exist. They are not alternatives.
 
@@ -78,12 +78,65 @@ Phase 6 B — heterogeneous k:
 Leader emergence confirmed: corr(k_i, |x_i|) = 0.84-0.86 for bimodal.
 Agents with k∈[1.0,1.5] reach |x|≈1.0, followers partially dragged.
 
-Small-world: best for homogeneous k (sync=70%),
-             worst for heterogeneous (complete collapse).
+Small-world: best for homogeneous k (sync=70%), worst for heterogeneous (complete collapse).
 Star: most robust — hub dampens leader influence.
 
 Key finding: topology determines HOW leaders affect the system,
 not WHETHER leaders exist.
+
+Phase 7A — rho_agents sweep: correlated price-signal noise
+
+Question:
+What is the critical belief correlation rho_c above which decentralized
+battery agents lose action diversity and synchronize?
+
+Setup:
+  30 batteries
+  tou_controller
+  price_sigma = 20.0
+  forecast_error_sigma_kw = 1.0
+  rho_agents swept from 0 to 1
+  40 rho points
+  20 runs per point
+  4 topologies: legacy_ring, linear, small_world, star
+
+Finding — rho_c_sync_collapse ordering:
+  legacy_ring   0.205
+  small_world   0.205
+  linear        0.231
+  star          0.308
+
+Correlated price-signal noise causes gradual synchronization collapse.
+The decline is not a sharp cliff — it is a smooth common-noise collapse,
+consistent with common-noise synchronization literature (Pimenova et al. 2016).
+
+Topology modulates rho_c. Star resists collapse longest. Legacy_ring and
+small_world collapse earliest. Linear is slightly later.
+
+Spectral conjecture test:
+lambda_2 alone does not explain rho_c.
+Measured lambda_2:
+  linear       0.0979
+  star         1.0000
+  small_world  1.4110
+  legacy_ring  1.7639
+
+Linear and legacy_ring share nearly identical rho_c despite an 18-fold
+difference in lambda_2. rho_c is not predicted by algebraic connectivity alone.
+Full spectral structure, eigenvector localization, and degree asymmetry
+are needed to explain the ordering.
+
+Shape vs shift:
+Topology changes both the position (rho_c) and the slope of the collapse curve.
+  legacy_ring   slope 0.755  (gentlest)
+  small_world   slope 0.998
+  linear        slope 1.147
+  star          slope 1.221  (steepest)
+More resistant topologies collapse more steeply once triggered.
+Total collapse magnitude (~82%) is topology-independent.
+
+rho_c_failure: not measured in this sub-experiment.
+See Phase 7B.
 
 Phase 7b — feeder_failure sweep: belief_neighborhood_controller
 Question:
@@ -113,3 +166,38 @@ Local degree structure and information aggregation govern rho_c,
 not global spectral mixing rate.
 Delay-but-amplify pattern confirmed: topologies with higher rho_c
 collapse more steeply once triggered (star slope 1.22, legacy_ring 0.76).
+
+Phase 8 — Fleet size scaling
+
+Question:
+Does fleet size change the feeder impact of correlated belief when feeder capacity scales proportionally with fleet size?
+
+Setup:
+Linear topology only.
+Fleet sizes N = 5, 10, 20, 30, 50.
+feeder_limit_kw = 6N.
+belief_neighborhood_controller.
+price_sigma = 20.
+rho_agents swept from 0 to 1.
+
+Finding:
+Baseline violation rates remain low across fleet sizes, confirming that feeder headroom scaling prevents trivial overload at larger N.
+
+However, high-correlation violation rates grow dramatically relative to baseline. The violation amplification ratio increases with fleet size. This suggests that larger fleets can appear safer under independent noise while becoming more exposed to common-noise synchronization.
+
+Threshold caveat:
+The previous baseline-relative 2σ rho_c_failure detector is not comparable across fleet sizes, because baseline variance shrinks with N. This can create artificial early failure thresholds and negative protection windows. Therefore Phase 8 reports violation amplification rather than protection_gap.
+
+Conclusion:
+Fleet size does not simply make the feeder fail earlier under proportional headroom. Instead, scale increases the contrast between normal decentralized operation and correlated synchronized failure.
+
+Phase 9 — failure threshold calibration
+
+The baseline-relative 2σ failure detector is not comparable across fleet sizes because baseline variance changes with N. At larger N, independent load/control variation averages out, making baseline feeder violations smoother and lowering the effective failure threshold. This can produce artificial early rho_c_failure estimates.
+
+A fixed absolute violation threshold is more comparable across fleet sizes. Using violation_mean > 0.10, rho_c_failure remains in the range ~0.63–0.84 across N, showing that proportional feeder scaling prevents trivial earlier failure at larger fleet sizes.
+
+However, violation amplification increases with fleet size. At rho≈0.9, violations rise by ~2.3x for N=5 but ~7.9x for N=50. At rho=1.0, violations rise by ~3.1x for N=5 and ~9.2x for N=50.
+
+Conclusion:
+With feeder capacity scaled proportionally, larger fleets do not necessarily fail earlier in absolute rho. Instead, they become more deceptive: baseline operation appears safer and more stable, while common-noise synchronization produces a larger relative jump in feeder stress.

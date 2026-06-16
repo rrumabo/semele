@@ -200,3 +200,71 @@ distributed storage (Al Dandachly et al., 2026), which proves
 equilibrium existence under independent private noise but leaves the
 correlated noise regime open. The sandbox provides the first empirical
 map of that regime.
+
+## Phase 8 — Fleet Size Scaling
+
+**Question:**  
+Does increasing the number of decentralized battery agents shrink the protection window between synchronization collapse and feeder failure?
+
+**Setup:**  
+Phase 8 fixes the information topology to a linear network and varies fleet size:
+
+- `N ∈ {5, 10, 20, 30, 50}`
+- `rho_agents ∈ [0, 1]`
+- `controller = belief_neighborhood_controller`
+- `price_sigma = 20.0`
+- `feeder_limit_kw = 6.0 * N`
+
+The feeder limit scales linearly with fleet size so that larger fleets are not punished simply for being larger. This keeps per-agent feeder headroom approximately constant and isolates the fleet-size effect.
+
+**Initial threshold result:**  
+Using the original baseline-relative `2σ` failure detector produced unstable results at large fleet sizes. In some cases, the detected feeder-failure threshold appeared before the synchronization-collapse threshold, producing a negative protection window.
+
+This was not interpreted as a physical result. It was a thresholding artifact: as fleet size grows, baseline feeder violations become smoother and lower-variance, so a `2σ` threshold becomes too sensitive to small absolute changes.
+
+**Main finding:**  
+With proportional feeder scaling, larger fleets do not necessarily fail earlier in absolute `rho`. Instead, they become more deceptive: baseline operation appears safer and more stable, while correlated belief produces a larger relative increase in feeder violations.
+
+At high correlation, feeder-violation amplification grows with fleet size:
+
+| Fleet size | Amplification at rho≈0.9 | Amplification at rho=1.0 |
+|---:|---:|---:|
+| 5  | 2.28× | 3.08× |
+| 10 | 5.25× | 7.08× |
+| 20 | 3.20× | 4.15× |
+| 30 | 5.42× | 6.33× |
+| 50 | 7.89× | 9.22× |
+
+**Interpretation:**  
+Scale does not simply make the feeder fail earlier when feeder capacity scales with the fleet. Instead, scale increases the contrast between normal decentralized operation and common-noise-driven synchronized failure. Independent variation averages out at larger fleet sizes, but correlated belief remains coherent across agents.
+
+---
+
+## Phase 9 — Failure Threshold Calibration
+
+**Question:**  
+Which feeder-failure threshold definition is comparable across fleet sizes?
+
+**Problem:**  
+The baseline-relative `2σ` detector is useful within a fixed experiment, but it is not reliable across different fleet sizes. Larger fleets have lower baseline variance because independent fluctuations average out. This makes the `2σ` failure threshold artificially tight at large `N`.
+
+**Fix:**  
+Phase 9 re-analyzes the fleet-size sweep using fixed absolute feeder-violation thresholds and violation-amplification ratios.
+
+Absolute threshold example:
+
+| Fleet size | rho where violation_mean > 0.10 |
+|---:|---:|
+| 5  | 0.632 |
+| 10 | 0.789 |
+| 20 | 0.684 |
+| 30 | 0.737 |
+| 50 | 0.842 |
+
+**Finding:**  
+Using a fixed absolute `10%` violation threshold, feeder failure appears in a similar high-correlation range across fleet sizes. This supports the conclusion that proportional feeder scaling prevents trivial earlier failure at larger `N`.
+
+However, the relative violation amplification still grows strongly with fleet size. Therefore, the fleet-size effect is not mainly “earlier failure”; it is **larger contrast between normal operation and correlated failure**.
+
+**Conclusion:**  
+Phase 9 replaces the misleading baseline-relative protection window with more comparable cross-scale metrics. For fleet-size studies, absolute violation thresholds and amplification ratios are more reliable than baseline-relative `2σ` thresholds.
