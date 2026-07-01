@@ -46,7 +46,7 @@ where:
     k:        float = 1.0     # coupling strength
 
     state:    float = field(default=0.0)       # x_i — internal decision variable
-    neighbors: List[int] = field(default_factory=list)  # neighbour agent ids
+    neighbors: List[int] = field(default_factory=list)  
 
     @property
     def power_kw(self) -> float:
@@ -79,7 +79,6 @@ where:
             + self.alpha * local_load
             + self.k * consensus
         )
-        # Clamp to [-1, 1]
         self.state = float(np.clip(self.state, -1.0, 1.0))
 
 
@@ -153,10 +152,7 @@ class Network:
         return np.array([self.agents[aid].power_kw for aid in sorted(self.agents)])
 
 
-# ---------------------------------------------------------------------------
 # Topology factory functions
-# ---------------------------------------------------------------------------
-
 def make_linear(n: int, k: float = 1.0, alpha: float = 0.3) -> Network:
     """
     Linear chain: 0 -- 1 -- 2 -- ... -- n-1
