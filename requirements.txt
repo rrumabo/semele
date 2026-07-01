@@ -16,4 +16,4 @@ pyyaml
 
 # Optional (if you used notebooks)
 jupyter
-ipykernel
+ipykernelnetworkx

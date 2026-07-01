@@ -6,14 +6,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import numpy as np
 import pandas as pd
 
-from src.battery import Battery
-from src.controllers import (
+from lampyris.battery import Battery
+from lampyris.controllers import (
     local_aware_controller,
     neighborhood_controller,
     soft_capped_tou_controller,
     tou_controller,
 )
-from src.simulator import (
+from lampyris.simulator import (
     compute_max_ramp_kw,
     compute_peak_kw,
     compute_total_feeder_excess_kw,

@@ -4,33 +4,38 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Tuple
 import numpy as np
 
-# ---------------------------------------------------------------------------
-# Core classes
-# ---------------------------------------------------------------------------
-
 @dataclass
 class Agent:
     """
-    A distributed energy agent on a network node.
+A distributed energy agent on a network node.
 
-    state x_i ∈ [-1, 1]:
-        -1 = discharge hard
-         0 = idle
-        +1 = charge hard
+This class is used for abstract network/consensus experiments. It is not
+the physical battery model used by the main simulator.
 
-    This is not a physical quantity — it is an internal decision variable.
-    Actual power is derived via: P_i = p_max * tanh(x_i)
+state x_i ∈ [-1, 1]:
+    -1 = charge hard
+     0 = idle
+    +1 = discharge hard
 
-    Dynamics (one step):
-        x_i(t+1) = (1-alpha)*x_i(t)
-                 + alpha*d_i(t)
-                 + k_i * sum_{j in N(i)} (x_j - x_i)
+Power sign convention:
+    P_i < 0 = charge
+    P_i > 0 = discharge
 
-    where:
-        alpha   — memory decay (how fast agent forgets past state)
-        d_i(t)  — local load signal (external disturbance)
-        k_i     — coupling strength (how much neighbours influence agent)
-    """
+Actual power is derived via:
+    P_i = p_max * tanh(x_i)
+
+Dynamics (one step):
+    x_i(t+1) = (1-alpha)*x_i(t)
+             + alpha*d_i(t)
+             + k_i * sum_{j in N(i)} (x_j - x_i)
+
+where:
+    alpha   — memory decay
+    d_i(t)  — normalized decision signal in [-1, 1]
+              negative pushes toward charging
+              positive pushes toward discharging
+    k_i     — coupling strength
+"""
 
     id:       int
     p_max:    float = 10.0    # kW
@@ -45,8 +50,14 @@ class Agent:
 
     @property
     def power_kw(self) -> float:
-        """Actual power from internal state. Positive = charge, negative = discharge."""
-        return self.p_max * float(np.tanh(self.state))
+        """
+        Actual power from internal state.
+
+        Sign convention:
+            negative = charge
+            positive = discharge
+        """
+        return self.p_max * float(np.tanh(self.state))    
 
     def step(
         self,
@@ -57,6 +68,9 @@ class Agent:
         Update internal state for one timestep.
 
         local_load: d_i(t) — normalised to [-1, 1].
+            negative values push the agent toward charging.
+            positive values push the agent toward discharging.
+
         neighbor_states: x_j for each j in N(i).
         """
         consensus = sum(ns - self.state for ns in neighbor_states)

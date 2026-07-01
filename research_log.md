@@ -201,3 +201,60 @@ However, violation amplification increases with fleet size. At rho≈0.9, violat
 
 Conclusion:
 With feeder capacity scaled proportionally, larger fleets do not necessarily fail earlier in absolute rho. Instead, they become more deceptive: baseline operation appears safer and more stable, while common-noise synchronization produces a larger relative jump in feeder stress.
+
+Phase 10 — mechanism diagnostics
+
+Question:
+Which intermediate variable best predicts feeder violations under correlated belief?
+
+Finding:
+rho_agents is an upstream driver, but it is not the strongest immediate predictor of feeder failure. Across N=10, 30, and 50, peak_charge_ratio correlates more strongly with violation_fraction than rho_agents.
+
+Correlations with violation_fraction:
+
+N=10:
+  peak_charge_ratio  0.717
+  rho_agents         0.625
+
+N=30:
+  peak_charge_ratio  0.742
+  rho_agents         0.629
+
+N=50:
+  peak_charge_ratio  0.757
+  rho_agents         0.693
+
+The sync metric is negatively correlated with violations, meaning that lower action dispersion — stronger synchronization — corresponds to higher feeder stress. Peak fraction charging is also positively correlated with violations.
+
+Conclusion:
+Correlated belief does not directly cause feeder failure. It first creates synchronized charging pressure. Feeder failure is best understood as a physical overload mechanism driven by peak aggregate charging relative to feeder capacity.
+"Correlation creates alignment, but its the aligned charging that creates overload"
+
+Phase 10 — Initial mediator scan
+Done.
+Found candidate mediator family.
+
+Phase 11 — Structured signal robustness
+Replace random load/price with daily-shaped load and price profiles.
+Run mediator scan again.
+
+Phase 12 — Battery heterogeneity robustness
+Use heterogeneous capacities, power limits, SOC distributions.
+Run mediator scan again.
+
+Phase 13 — Feeder headroom robustness
+Sweep feeder_limit_kw / N using absolute thresholds.
+Run mediator scan again.
+
+Phase 14 — Topology/radial robustness
+Use topology families or feeder-like radial graphs.
+Run mediator scan again.
+
+Phase 15 — Mediator synthesis
+Compare all critic worlds.
+Rank single mediators and mediator combinations.
+Estimate stable weights.
+
+Phase 16 — Mitigation controller
+Design controller to reduce the robust mediator family.
+Test against baseline.

@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from src.network import Network, make_linear, make_star, make_small_world
+from lampyris.network import Network, make_linear, make_star, make_small_world
 
 np.random.seed(42)
 random.seed(42)

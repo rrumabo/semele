@@ -37,10 +37,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.battery import Battery
-from src.controllers import tou_controller
-from src.network import make_linear, make_small_world, make_star
-from src.simulator import run_simulation
+from lampyris.battery import Battery
+from lampyris.controllers import tou_controller
+from lampyris.network import make_linear, make_small_world, make_star
+from lampyris.simulator import run_simulation
 
 
 # -----------------------------------------------------------------------------

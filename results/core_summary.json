@@ -1,0 +1,91 @@
+{
+  "project": "Lampyris",
+  "question": "When do distributed batteries help PV integration, and when do shared signals synchronize them into grid-level stress?",
+  "headline_result": "Increasing rho_agents reduces cross-agent action spread, increases aggregate charging pressure, and can raise feeder-stress and synthetic PV-curtailment-risk proxies.",
+  "important_limitation": "PV curtailment is represented as a simple energy-accounting risk proxy, not a full power-flow or market-dispatch model.",
+  "configuration": {
+    "master_seed": 42,
+    "n_steps": 24,
+    "n_batteries": 20,
+    "n_runs": 200,
+    "rho_values": [
+      0.0,
+      0.05,
+      0.1,
+      0.15000000000000002,
+      0.2,
+      0.25,
+      0.30000000000000004,
+      0.35000000000000003,
+      0.4,
+      0.45,
+      0.5,
+      0.55,
+      0.6000000000000001,
+      0.65,
+      0.7000000000000001,
+      0.75,
+      0.8,
+      0.8500000000000001,
+      0.9,
+      0.9500000000000001,
+      1.0
+    ],
+    "topologies": [
+      "linear",
+      "star",
+      "small_world"
+    ],
+    "dt_hours": 1.0,
+    "battery_capacity_kwh": 20.0,
+    "battery_power_kw": 5.0,
+    "feeder_limit_kw": 120.0,
+    "feeder_limit_per_battery_kw": 6.0,
+    "pv_peak_kw": 110.0,
+    "pv_peak_per_battery_kw": 5.5,
+    "low_price": 30.0,
+    "high_price": 70.0,
+    "forecast_error_sigma_kw": 1.0,
+    "price_sigma": 20.0,
+    "network_alpha": 0.1,
+    "network_k": 0.2
+  },
+  "headline_by_topology": {
+    "linear": {
+      "sync_mean_at_rho_0": 1.6339661415789957,
+      "sync_mean_at_rho_1": 0.14958397174814608,
+      "violation_mean_at_rho_0": 0.0,
+      "violation_mean_at_rho_1": 0.080625,
+      "peak_charge_ratio_at_rho_0": 0.39433339655984434,
+      "peak_charge_ratio_at_rho_1": 0.6396033956964375,
+      "curtailment_fraction_at_rho_0": 0.22454315845407738,
+      "curtailment_fraction_at_rho_1": 0.4397133816275332
+    },
+    "small_world": {
+      "sync_mean_at_rho_0": 1.6299067001842757,
+      "sync_mean_at_rho_1": 0.15125294495281927,
+      "violation_mean_at_rho_0": 0.0,
+      "violation_mean_at_rho_1": 0.08291666666666667,
+      "peak_charge_ratio_at_rho_0": 0.3912598923169261,
+      "peak_charge_ratio_at_rho_1": 0.6491492117367085,
+      "curtailment_fraction_at_rho_0": 0.22363901761285668,
+      "curtailment_fraction_at_rho_1": 0.4447465248794473
+    },
+    "star": {
+      "sync_mean_at_rho_0": 1.6146432014429095,
+      "sync_mean_at_rho_1": 0.14921156394488344,
+      "violation_mean_at_rho_0": 0.00041666666666666664,
+      "violation_mean_at_rho_1": 0.085,
+      "peak_charge_ratio_at_rho_0": 0.40018646190146867,
+      "peak_charge_ratio_at_rho_1": 0.6528433319119611,
+      "curtailment_fraction_at_rho_0": 0.2647079854052341,
+      "curtailment_fraction_at_rho_1": 0.41530080138903935
+    }
+  },
+  "outputs": {
+    "raw_csv": "/Users/linearityproductions/Desktop/lampyris/results/core_rho_sweep.csv",
+    "summary_csv": "/Users/linearityproductions/Desktop/lampyris/results/core_summary.csv",
+    "summary_json": "/Users/linearityproductions/Desktop/lampyris/results/core_summary.json",
+    "plot": "/Users/linearityproductions/Desktop/lampyris/results/core_rho_sweep.png"
+  }
+}

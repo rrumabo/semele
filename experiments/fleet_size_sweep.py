@@ -27,10 +27,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from src.battery import Battery
-from src.controllers import belief_neighborhood_controller
-from src.network import make_linear
-from src.simulator import run_simulation
+from lampyris.battery import Battery
+from lampyris.controllers import belief_neighborhood_controller
+from lampyris.network import make_linear
+from lampyris.simulator import run_simulation
 
 
 RESULTS_DIR = ROOT / "results"
