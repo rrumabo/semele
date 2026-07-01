@@ -1,270 +1,162 @@
-# Lambyris: Exploring Emergent Dynamics in Distributed Energy Systems
+# Lampyris
 
-## Abstract
+Lampyris is a small simulation sandbox for studying coordination failure in distributed battery fleets on renewable-heavy island grids.
 
-A simulation study of how multiple batteries sharing a feeder create
-aggregate behavior that no individual battery intended.
+It asks a simple question:
 
-The central question:
+> When do distributed batteries help absorb PV surplus, and when do shared forecast or price signals synchronize them into grid-level stress?
 
-> When many batteries follow simple local rules, what happens to the grid?
+This is not a production grid tool. It is an experimental research sandbox.
 
-This is not a grid tool. It is an experimental sandbox for studying
-coordination failure.
+## Core idea
 
-## Introduction
+A single battery responding to a price or forecast signal is harmless.
 
-Most research on smart battery coordination assumes each battery makes
-decisions based on its own private information. In the mean-field game
-framework — the current mathematical standard for large populations of
-interacting agents — private noise terms average out as fleet size grows,
-leaving a clean deterministic trajectory. This is the law of large numbers
-doing its work: independent errors cancel.
+Many batteries responding to the same signal can become a new system-level load.
 
-In practice, batteries increasingly rely on shared forecast services —
-the same weather API, the same price signal, the same aggregator. This
-creates correlated beliefs: the noise decomposition becomes
+Lampyris studies this failure mode by sweeping `rho_agents`, the amount of shared signal correlation across the fleet.
 
-    ξ_i(t) = √ρ · Z(t) + √(1−ρ) · ε_i(t)
+Low `rho_agents` means each battery mostly sees its own private noisy signal.
 
-where Z(t) is a common shock shared by all agents and ε_i is private.
-As ρ increases, the common component no longer averages out — it accumulates.
+High `rho_agents` means many batteries see the same common signal.
 
-This project studies what happens to a fleet of batteries as ρ increases
-from zero to one. It is not a grid tool. It is an experimental sandbox
-for studying how correlated belief becomes collective failure.
+The core mechanism is:
 
-The central question:
+rho_agents increases
+- battery actions become more synchronized
+- aggregate charging peaks rise
+- feeder violations appear
+- PV curtailment-risk proxy increases
 
-> When many individually rational agents share the same mistaken belief,
-> what happens to the grid — and what governs the threshold?
+The main result is not “batteries are bad”.
 
-## Phase 1 – Controllers under Stress
+The result is:
 
-**Question:** How do different local control strategies perform under varying degrees of feeder stress?
+> Distributed batteries are useful flexibility until shared signals make them act like one coordinated stress event.
 
-We compared four controllers—Time‑Of‑Use (TOU), Randomised TOU, Hard Capped TOU and Soft Capped TOU—across light, medium and hard loading conditions. The naive TOU controller caused strong synchronisation: many batteries charged at the same time, resulting in the worst feeder peaks. Randomisation broke synchronisation only partially and its benefit was sensitive to the regime. Hard capping (abruptly shutting down charging once a threshold was reached) suppressed overloads most effectively in the hard regime but at the cost of rigidity. Soft capping (scaling charge rates continuously with feeder stress) offered the best balance across regimes.
+## Reproduce the core result
 
-**Key findings:**
+Install the package in editable mode:
 
-1. Local rationality does not scale. A rule that is harmless for one battery can be harmful for many.
-2. Performance is regime-dependent. No single controller dominates across all stress levels; a control philosophy that ignores regime dependence risks misleading conclusions.
-3. Structured coordination outperforms randomisation. The soft capping controller’s parameter has predictable effects, whereas randomisation acts blindly.
-4. Metrics matter. The 'violation count' (number of times a threshold is exceeded) can mask the severity of overloads; total excess power is a more honest measure of harm.
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -e .
 
-## Phase 2 – Information as a Resource
+Run the main experiment:
 
-**Question:** How much and what kind of information does an agent need to mitigate its harmful impact?
+    python3 experiments/reproduce_core_result.py
 
-We tested four information levels: None (price only), Local (own state of charge), Neighbourhood (average of k neighbours’ previous actions) and Global (real-time feeder load). Each was mapped to a controller and evaluated under deterministic and stochastic price scenarios with both uniform and heterogeneous initial states.
+This generates:
 
-**Key findings:**
+    results/core_rho_sweep.csv
+    results/core_summary.csv
+    results/core_summary.json
+    results/core_rho_sweep.png
 
-1. Neighbourhood information adds no value. Observing neighbours’ past actions did not reduce peaks at any scale: the average reduction was 0 % of baseline across all neighbourhood sizes. Inference through lagged peer behaviour is a dead end.
-2. Self-awareness helps only when prices are predictable. Scaling charge power proportional to state-of-charge reduces peaks by ~25 % under deterministic prices and ~13 % under stochastic prices. The benefit arises from natural self-limiting: nearly full batteries charge less aggressively.
-3. Global visibility is robust. Access to the feeder load reduces peaks by 40–46 % across regimes and price structures because the controller responds to the variable it actually cares about—system stress—rather than guessing through proxies.
-4. Quality matters more than quantity. Minimal information is not necessarily beneficial; information must be relevant. Our original hypothesis—that small neighbourhoods would suffice—was falsified, underscoring the value of negative results.
+## Project structure
 
-## Phase 3 – Fairness and Physical Asymmetry
+    src/lampyris/
+        battery.py
+        controllers.py
+        network.py
+        simulator.py
+        time_integrators.py
 
-**Question:** Can a globally optimal solution be locally unjust—and does that injustice require deliberate intent?
+    experiments/
+        reproduce_core_result.py
+        legacy/
 
-We simulated ten identical batteries placed along a feeder. Each followed the same controller and had the same charging desire, but physical constraints made the end-of-line sections more restrictive. Despite identical goals, near-source batteries enjoyed unconstrained charging while end-of-line batteries faced severe curtailment. In hard regimes, some end-of-line batteries charged nothing, while those near the source charged freely.
+    results/
+        core_rho_sweep.csv
+        core_summary.csv
+        core_summary.json
+        core_rho_sweep.png
+        legacy/
 
-**Key findings:**
+The official reproducible experiment is:
 
-1. Aggregate optimality does not guarantee fairness. In the medium regime, the near-source battery bore 0 % of total curtailment while the end-of-line battery bore 33.8 %—over three times its proportional share.
-2. Asymmetry emerges naturally. The controller did not 'punish' specific batteries; the physics did. This mirrors real distribution grids where uniform tariffs lead to unequal returns on solar investments, not because of malice but because physical infrastructure is ignored.
-3. The system is complex but not chaotic. No sensitive dependence on initial conditions was observed. True chaos would require adaptive or memory-based agents, suggesting an avenue for future work.
+    experiments/reproduce_core_result.py
 
-## Phase 4 – Frequency Stability through Droop Control
+Older exploratory experiments are kept in:
 
-**Question:** Can distributed battery droop control stabilise grid frequency—and what governs the boundary between stability and collapse?
+    experiments/legacy/
 
-We extended the simulator with the swing equation to track frequency as a state variable and implemented droop control: batteries discharge when frequency drops and charge when it rises. We ran sweeps over inertial constant M and droop gain and tested responses to disturbances.
+Older exploratory results are kept in:
 
-**Key findings:**
+    results/legacy/
 
-1. The stability boundary scales with M/droop_gain. Stability requires M/droop_gain ≥ 5. Inertial constant and gain cannot be considered independently.
-2. Droop is not a substitute for inertia. Setting M=0 is ill-posed: inertia generates the frequency signal droop responds to. Without it, droop has nothing to act upon.
-3. Optimal gain depends on context. At M=10, droop gain ≈1.0 minimises frequency deviations across disturbance sizes. Higher gains may drive the system toward instability; lower gains are too passive.
-4. Timing matters. The same droop gain can survive a 25 kW disturbance at t=19 but nearly fail under a 20 kW disturbance at t=11, illustrating that recovery time and disturbance timing interact in nontrivial ways.
+## Current default experiment
 
-## Phase 5 – Mixed Fleets and the Role of Participation
+The current core run uses:
 
-**Question:** What fraction of a fleet needs droop control to achieve stability, and does assignment strategy matter?
+    N_BATTERIES = 20
+    N_RUNS = 200
+    FEEDER_LIMIT_PER_BATTERY_KW = 6.0
+    PV_PEAK_PER_BATTERY_KW = 5.5
 
-We simulated fleets where some batteries used droop control and others naive TOU. Strategies for selecting droop participants included near-source first, end-of-line first and random, and the fraction of droop agents varied from 10 % to 100 %.
+For a quick smoke test, temporarily reduce:
 
-**Key findings:**
+    N_RUNS = 5
 
-1. A participation threshold exists. At least 60 % of the fleet must employ droop for stability. Below this, all strategies fail regardless of which batteries are selected.
-2. Position has limited impact. Near-source and random assignment both stabilise at 60 %. End-of-line assignment requires 70 %. Unlike curtailment in Phase 3, frequency response is largely position-independent because frequency is a global signal.
-3. Stability improves smoothly with participation. Each additional droop agent reduces frequency deviation predictably; there is no sharp cliff. This suggests that partial adoption of droop yields incremental benefits.
-
-## Phase 6 – Network Topology and Emergent Synchronisation
-
-**Question:** How do network topology and heterogeneity in coupling strength shape the transition between order and disorder?
-
-We replaced the linear feeder with general graphs (linear chain, star and Watts–Strogatz small-world) and assigned each battery to a node. The coupling strength k between neighbours controlled how strongly each agent adjusted its internal state in response to neighbours. We first considered a homogeneous k and then introduced heterogeneity in k_i values.
-
-**Key findings:**
-
-1. Topology determines the synchronisation window. In small-world networks, synchronisation emerges for k as low as 0.05 and disappears by 0.21; in linear chains the window extends to about 0.41; in star networks it is absent. Shortcuts accelerate both synchronisation and polarisation.
-2. Beyond a critical k the system polarises. For k above the synchronisation window, the state variance jumps abruptly and remains high: agents split into opposing factions with large positive or negative internal states. Small-world networks polarise at lower k than linear ones. The global signal amplifies local oscillations.
-3. Heterogeneous coupling reveals leaders. When k_i are drawn from a distribution, agents with high k_i drive their neighbourhoods toward extreme states and correlate strongly with the magnitude of their final internal state. In star graphs, heterogeneity leads to clusters around the hub; in small-world graphs it triggers broader polarisation. Uniformly low k_i yields synchronisation in small-world networks but not in star networks.
-
-These results caution against naive application of consensus theories: the 'correct' value of k depends on the network’s spectral properties, and heterogeneity can destabilise even otherwise stable networks.
-
-## Phase 7 – Correlated Belief, Synchronisation Collapse, and Feeder Failure
-
-**Question:** What is the critical belief correlation ρ_c above which
-topology can no longer prevent synchronisation-driven collective failure —
-and how does topology modulate the gap between collapse and actual grid failure?
-
-Two experiments were run. The price-sync sweep used a TOU controller and
-corrupted only the price signal, sweeping ρ_agents from 0 to 1 across four
-topologies with 30 batteries and 20 runs per point. The feeder-failure sweep
-used the hybrid belief–neighbourhood controller with a calibrated feeder
-limit, measuring when synchronised behaviour produced actual feeder overload.
-
-**Key findings:**
-
-1. **Topology modulates ρ_c.** The critical correlation at which
-synchronisation collapse begins depends on network structure:
-small-world collapses first (ρ_c ≈ 0.21), legacy ring and linear
-chain follow (ρ_c ≈ 0.23–0.26), and the star resists longest
-(ρ_c ≈ 0.31–0.41 depending on controller).
-
-2. **Star topology delays onset but amplifies collapse.** The hub
-structure mediates neighbour signals and postpones the synchronisation
-threshold. Once the threshold is crossed the star collapses more
-steeply than other topologies. Resistance and catastrophic collapse
-are two sides of the same hub-mediation mechanism.
-
-3. **The decline is gradual, not a sharp phase transition.** Diversity
-erodes continuously from ρ = 0 to ρ = 1. This is consistent with
-common-noise synchronisation theory, where shared external forcing
-degrades independence incrementally rather than triggering a sudden
-bifurcation.
-
-4. **The spectral conjecture is falsified.** The initial hypothesis
-that ρ_c scales with 1/λ₂ (inverse algebraic connectivity) is not
-supported. Linear and legacy-ring share nearly identical ρ_c despite
-an 18-fold difference in λ₂. ρ_c is governed by local degree
-structure and information aggregation, not global spectral mixing rate.
+Then restore it before regenerating final results.
 
-5. **Topology changes collapse curve shape, not only position.**
-The slope of the sync-index curve near ρ_c differs across topologies:
-star is steepest (slope 1.22), legacy-ring is gentlest (slope 0.76).
-More resistant topologies collapse more steeply once triggered —
-a delay-but-amplify pattern. Total collapse magnitude (~82%) is
-topology-independent.
-
-6. **Collapse onset and feeder failure are independent events.**
-With a feeder-aware controller and calibrated feeder limit, both
-thresholds were measured. The protection window — the gap between
-ρ_c_sync and ρ_c_failure — varies significantly by topology:
-
-| Topology    | ρ_c_sync | ρ_c_failure | Protection window |
-|-------------|----------|-------------|-------------------|
-| linear      | 0.308    | 0.359       | 0.051             |
-| legacy_ring | 0.333    | 0.462       | 0.128             |
-| star        | 0.410    | 0.590       | 0.179             |
-| small_world | 0.282    | 0.487       | 0.205             |
-
-Small-world collapses earliest but has the largest protection window.
-Linear collapses second but has the smallest window. Collapse onset
-does not predict failure onset — they are independent properties of
-the topology.
-
-7. **Local degree structure governs ρ_c, not spectral mixing.**
-Topologies with the same local degree structure (linear and legacy-ring,
-both degree-2) share the same ρ_c regardless of global topology.
-The protection window is also governed by local topology: small-world
-shortcuts distribute synchronised load across multiple paths, delaying
-feeder impact despite early collapse onset. Linear chains propagate
-synchronised load directly, leaving almost no buffer.
-
-## Discussion and Outlook
-
-A new direction has emerged from Phase 7. The central question is no
-longer only what happens when agents share information, but what happens
-when they share the same mistaken belief. Correlated forecast errors —
-arising naturally from shared weather APIs, common aggregators, or
-synchronised market signals — act as a hidden coordination mechanism.
-Each agent behaves rationally given its belief; the collective failure
-is a property of the belief structure, not of any individual decision.
-This connects the sandbox to recent work on mean-field games for
-distributed storage (Al Dandachly et al., 2026), which proves
-equilibrium existence under independent private noise but leaves the
-correlated noise regime open. The sandbox provides the first empirical
-map of that regime.
-
-## Phase 8 — Fleet Size Scaling
-
-**Question:**  
-Does increasing the number of decentralized battery agents shrink the protection window between synchronization collapse and feeder failure?
-
-**Setup:**  
-Phase 8 fixes the information topology to a linear network and varies fleet size:
-
-- `N ∈ {5, 10, 20, 30, 50}`
-- `rho_agents ∈ [0, 1]`
-- `controller = belief_neighborhood_controller`
-- `price_sigma = 20.0`
-- `feeder_limit_kw = 6.0 * N`
-
-The feeder limit scales linearly with fleet size so that larger fleets are not punished simply for being larger. This keeps per-agent feeder headroom approximately constant and isolates the fleet-size effect.
-
-**Initial threshold result:**  
-Using the original baseline-relative `2σ` failure detector produced unstable results at large fleet sizes. In some cases, the detected feeder-failure threshold appeared before the synchronization-collapse threshold, producing a negative protection window.
-
-This was not interpreted as a physical result. It was a thresholding artifact: as fleet size grows, baseline feeder violations become smoother and lower-variance, so a `2σ` threshold becomes too sensitive to small absolute changes.
-
-**Main finding:**  
-With proportional feeder scaling, larger fleets do not necessarily fail earlier in absolute `rho`. Instead, they become more deceptive: baseline operation appears safer and more stable, while correlated belief produces a larger relative increase in feeder violations.
-
-At high correlation, feeder-violation amplification grows with fleet size:
-
-| Fleet size | Amplification at rho≈0.9 | Amplification at rho=1.0 |
-|---:|---:|---:|
-| 5  | 2.28× | 3.08× |
-| 10 | 5.25× | 7.08× |
-| 20 | 3.20× | 4.15× |
-| 30 | 5.42× | 6.33× |
-| 50 | 7.89× | 9.22× |
-
-**Interpretation:**  
-Scale does not simply make the feeder fail earlier when feeder capacity scales with the fleet. Instead, scale increases the contrast between normal decentralized operation and common-noise-driven synchronized failure. Independent variation averages out at larger fleet sizes, but correlated belief remains coherent across agents.
-
----
-
-## Phase 9 — Failure Threshold Calibration
-
-**Question:**  
-Which feeder-failure threshold definition is comparable across fleet sizes?
-
-**Problem:**  
-The baseline-relative `2σ` detector is useful within a fixed experiment, but it is not reliable across different fleet sizes. Larger fleets have lower baseline variance because independent fluctuations average out. This makes the `2σ` failure threshold artificially tight at large `N`.
-
-**Fix:**  
-Phase 9 re-analyzes the fleet-size sweep using fixed absolute feeder-violation thresholds and violation-amplification ratios.
-
-Absolute threshold example:
-
-| Fleet size | rho where violation_mean > 0.10 |
-|---:|---:|
-| 5  | 0.632 |
-| 10 | 0.789 |
-| 20 | 0.684 |
-| 30 | 0.737 |
-| 50 | 0.842 |
-
-**Finding:**  
-Using a fixed absolute `10%` violation threshold, feeder failure appears in a similar high-correlation range across fleet sizes. This supports the conclusion that proportional feeder scaling prevents trivial earlier failure at larger `N`.
-
-However, the relative violation amplification still grows strongly with fleet size. Therefore, the fleet-size effect is not mainly “earlier failure”; it is **larger contrast between normal operation and correlated failure**.
-
-**Conclusion:**  
-Phase 9 replaces the misleading baseline-relative protection window with more comparable cross-scale metrics. For fleet-size studies, absolute violation thresholds and amplification ratios are more reliable than baseline-relative `2σ` thresholds.
+## Sign convention
+
+Lampyris uses this convention:
+
+    battery_power_kw < 0 = charging
+    battery_power_kw > 0 = discharging
+
+Negative power means the battery is consuming from the grid.
+
+Positive power means the battery is supplying power to the load.
+
+## Main metrics
+
+The core experiment tracks:
+
+    sync_index
+    peak_charge_ratio
+    feeder_violation_fraction
+    pv_curtailment_fraction
+    pv_absorption_fraction
+
+Interpretation:
+
+    Lower sync_index
+        means batteries are acting more similarly.
+
+    Higher peak_charge_ratio
+        means aggregate charging pressure is larger relative to the feeder limit.
+
+    Higher feeder_violation_fraction
+        means the feeder limit is exceeded more often.
+
+    Higher pv_curtailment_fraction
+        means the synthetic PV-surplus risk proxy is worse.
+
+## Limitation
+
+The PV curtailment metric is a simple energy-accounting proxy.
+
+It is not a full power-flow model, OPF model, or market dispatch model.
+
+The correct phrase is:
+
+    PV curtailment-risk proxy
+
+not:
+
+    measured real-world curtailment
+
+## Research log
+
+The detailed phase-by-phase development history is in:
+
+    research_log.md
+
+That file contains the older controller tests, topology experiments, correlated-belief sweeps, fleet-size scaling, and threshold calibration notes.
+
+## One-line summary
+
+Lampyris studies when distributed batteries remain useful flexibility and when shared signals synchronize them into a grid-level stress event.
