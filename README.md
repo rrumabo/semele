@@ -137,21 +137,16 @@ Interpretation:
 
 ## Limitation
 
-The PV curtailment metric is a simple energy-accounting proxy.
+The PV curtailment metric is a simple energy accounting proxy.
 
-It is not a full power-flow model, OPF model, or market dispatch model.
+It is not a full power flow model, OPF model, or market dispatch model nor it claims to be one.
 
-The correct phrase is:
 
-    PV curtailment-risk proxy
-
-not:
-
-    measured real-world curtailment
+    It is mearly a PV curtailment risk proxy
 
 ## Research log
 
-The detailed phase-by-phase development history is in:
+The detailed phase by phase development history is in:
 
     research_log.md
 
