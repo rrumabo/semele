@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lampyris"
+name = "semele"
 version = "0.1.0"
 description = "Distributed battery coordination and curtailment-risk sandbox for renewable-heavy island grids."
 readme = "README.md"

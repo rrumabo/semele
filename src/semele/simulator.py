@@ -1,8 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
-from lampyris.battery import Battery
-from lampyris.network import Network
+from semele.battery import Battery
+from semele.network import Network
 
 
 @dataclass

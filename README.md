@@ -1,157 +1,51 @@
-# Lampyris
+# Semele
 
-Lampyris is a small simulation sandbox for studying coordination failure in distributed battery fleets on renewable-heavy island grids.
+Semele is a small computational study of decentralized battery-fleet dynamics under shared stochastic forecast signals.
 
-It asks a simple question:
+The core result is that, when agents are exposed to correlated forecast/price errors, the observed effective dimensionality of the fleet trajectory can become dominated by the common stochastic component rather than by the communication topology. In the linearized model, the correlated component projects onto the graph-invariant consensus mode; topology acts only through transverse modes.
 
-> When do distributed batteries help absorb PV surplus, and when do shared forecast or price signals synchronize them into grid-level stress?
+This repository contains the simulation code and experiments used for the note:
 
-This is not a production grid tool. It is an experimental research sandbox.
+**The Semele Effect: When Shared Stochastic Forcing Overwhelms Topological Structure**
 
-## Core idea
+## Repository structure
 
-A single battery responding to a price or forecast signal is harmless.
+```text
+src/semele/
+  battery.py
+  controllers.py
+  network.py
+  simulator.py
 
-Many batteries responding to the same signal can become a new system-level load.
+experiments/
+  reproduce_core_result.py
+  run_belief_rho_sweep.py
+  run_belief_rho_multiseed.py
+  run_spectral_sweep.py
+  check_consensus_mode.py
+  run_null_topology_test.py
+  spectral_diagnostics.py
+  make_paper_plots.py
+  legacy/
+```
 
-Lampyris studies this failure mode by sweeping `rho_agents`, the amount of shared signal correlation across the fleet.
+# Generated outputs are written to results/, which is ignored by git.
 
-Low `rho_agents` means each battery mostly sees its own private noisy signal.
+# Setup
+python3 -m pip install -r requirements.txt
+python3 -m pip install -e .
 
-High `rho_agents` means many batteries see the same common signal.
+If running without editable install, use: PYTHONPATH=src python3 -m experiments.make_paper_plots
 
-The core mechanism is:
+Reproduce paper figures : PYTHONPATH=src python3 -m experiments.make_paper_plots
 
-rho_agents increases
-- battery actions become more synchronized
-- aggregate charging peaks rise
-- feeder violations appear
-- PV curtailment-risk proxy increases
+## Main experiments
+PYTHONPATH=src python3 -m experiments.run_belief_rho_sweep
+PYTHONPATH=src python3 -m experiments.run_belief_rho_multiseed
+PYTHONPATH=src python3 -m experiments.run_spectral_sweep
+PYTHONPATH=src python3 -m experiments.check_consensus_mode
+PYTHONPATH=src python3 -m experiments.run_null_topology_test
 
-The main result is not “batteries are bad”.
+# Claim
 
-The result is:
-
-> Distributed batteries are useful flexibility until shared signals make them act like one coordinated stress event.
-
-## Reproduce the core result
-
-Install the package in editable mode:
-
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -e .
-
-Run the main experiment:
-
-    python3 experiments/reproduce_core_result.py
-
-This generates:
-
-    results/core_rho_sweep.csv
-    results/core_summary.csv
-    results/core_summary.json
-    results/core_rho_sweep.png
-
-## Project structure
-
-    src/lampyris/
-        battery.py
-        controllers.py
-        network.py
-        simulator.py
-        time_integrators.py
-
-    experiments/
-        reproduce_core_result.py
-        legacy/
-
-    results/
-        core_rho_sweep.csv
-        core_summary.csv
-        core_summary.json
-        core_rho_sweep.png
-        legacy/
-
-The official reproducible experiment is:
-
-    experiments/reproduce_core_result.py
-
-Older exploratory experiments are kept in:
-
-    experiments/legacy/
-
-Older exploratory results are kept in:
-
-    results/legacy/
-
-## Current default experiment
-
-The current core run uses:
-
-    N_BATTERIES = 20
-    N_RUNS = 200
-    FEEDER_LIMIT_PER_BATTERY_KW = 6.0
-    PV_PEAK_PER_BATTERY_KW = 5.5
-
-For a quick smoke test, temporarily reduce:
-
-    N_RUNS = 5
-
-Then restore it before regenerating final results.
-
-## Sign convention
-
-Lampyris uses this convention:
-
-    battery_power_kw < 0 = charging
-    battery_power_kw > 0 = discharging
-
-Negative power means the battery is consuming from the grid.
-
-Positive power means the battery is supplying power to the load.
-
-## Main metrics
-
-The core experiment tracks:
-
-    sync_index
-    peak_charge_ratio
-    feeder_violation_fraction
-    pv_curtailment_fraction
-    pv_absorption_fraction
-
-Interpretation:
-
-    Lower sync_index
-        means batteries are acting more similarly.
-
-    Higher peak_charge_ratio
-        means aggregate charging pressure is larger relative to the feeder limit.
-
-    Higher feeder_violation_fraction
-        means the feeder limit is exceeded more often.
-
-    Higher pv_curtailment_fraction
-        means the synthetic PV-surplus risk proxy is worse.
-
-## Limitation
-
-The PV curtailment metric is a simple energy accounting proxy.
-
-It is not a full power flow model, OPF model, or market dispatch model nor it claims to be one.
-
-
-    It is mearly a PV curtailment risk proxy
-
-## Research log
-
-The detailed phase by phase development history is in:
-
-    research_log.md
-
-That file contains the older controller tests, topology experiments, correlated-belief sweeps, fleet-size scaling, and threshold calibration notes.
-
-## One-line summary
-
-Lampyris studies when distributed batteries remain useful flexibility and when shared signals synchronize them into a grid-level stress event.
+The claim is not that topology has no dynamical effect. The claim is narrower: under shared stochastic forcing, topology-dependent modes can be masked because the dominant variance is injected into the consensus mode, which every connected graph shares.

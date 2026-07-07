@@ -1,5 +1,5 @@
 """
-Reproduce the core Lampyris result.
+Reproduce the core Semele result.
 
 Question:
     When do distributed batteries help PV integration, and when do shared
@@ -30,10 +30,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from lampyris.battery import Battery
-from lampyris.controllers import belief_neighborhood_controller
-from lampyris.network import Network, make_linear, make_small_world, make_star
-from lampyris.simulator import run_simulation
+from semele.battery import Battery
+from semele.controllers import belief_neighborhood_controller
+from semele.network import Network, make_linear, make_small_world, make_star
+from semele.simulator import run_simulation
 
 
 # ---------------------------------------------------------------------
@@ -316,7 +316,7 @@ def make_summary_payload(summary: pd.DataFrame) -> dict:
         }
 
     return {
-        "project": "Lampyris",
+        "project": "Semele",
         "question": (
             "When do distributed batteries help PV integration, and when do "
             "shared signals synchronize them into grid-level stress?"
@@ -414,7 +414,7 @@ def make_plot(summary: pd.DataFrame) -> None:
 
     axes[0].legend()
 
-    fig.suptitle("Lampyris core result: shared signals, storage coordination, PV risk")
+    fig.suptitle("Semele core result: shared signals, storage coordination, PV risk")
     fig.tight_layout()
     fig.savefig(PLOT_PATH, dpi=200)
     print(f"saved {PLOT_PATH}")

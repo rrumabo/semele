@@ -7,10 +7,17 @@ __pycache__/
 *.egg-info/
 src/*.egg-info/
 
+.DS_Store
+__pycache__/
+*.pyc
+
+results/
+
 # Virtual environments
 .venv/
 venv/
 env/
+log.md
 
 # Tool caches
 .pytest_cache/
@@ -26,3 +33,9 @@ env/
 
 # Local outputs / scratch
 outputs/
+# Legacy experiments and results (kept locally, not published)
+experiments/legacy/
+results/legacy/
+
+experiments/legacy/
+results/legacy/
