@@ -1,4 +1,4 @@
-# Lampyris
+# Semele
 
 A small simulator of home batteries that all respond to the same noisy price signal.
 
