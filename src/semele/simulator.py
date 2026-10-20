@@ -1,221 +1,134 @@
+"""Semele simulator: one day of a battery fleet behind one shared feeder.
+
+Sign convention everywhere: battery power < 0 = charging, > 0 = discharging.
+"""
 from __future__ import annotations
+
 from dataclasses import dataclass
+
 import numpy as np
+
 from semele.battery import Battery
 from semele.network import Network
+from semele.pricing import sdr_price
 
 
 @dataclass
 class SimulationResult:
-    """Aggregate and per-battery outcomes from one simulation run."""
-
-    aggregate_load_kw:           np.ndarray
-    aggregate_battery_power_kw:  np.ndarray
-    per_battery_power_kw:        np.ndarray
-    feeder_violations:           np.ndarray
-    per_battery_curtailment_kwh: np.ndarray
-    per_battery_requested_kwh:   np.ndarray
-    omega_hz:                    np.ndarray
+    per_battery_power_kw:       np.ndarray  # (T, N) power of each battery
+    aggregate_battery_power_kw: np.ndarray  # (T,)  sum over batteries
+    feeder_net_kw:              np.ndarray  # (T,)  power drawn through the feeder (< 0 = export)
+    feeder_violations:          np.ndarray  # (T,)  import OR export limit broken
+    import_violations:          np.ndarray  # (T,)
+    export_violations:          np.ndarray  # (T,)
+    price:                      np.ndarray  # (T,)  true price announced each step
 
 
 def run_simulation(
-    load_profiles_kw:  np.ndarray,
-    prices:            np.ndarray,
-    batteries:         list[Battery],
-    controller,                          # single controller OR list of controllers
-    dt_hours:          float = 1.0,
-    low_threshold:     float = 30.0,
-    high_threshold:    float = 70.0,
-    feeder_limit_kw:   float = 60.0,
-    neighborhood_size: int   = 2,
-    positions:         list[float] | None = None,
-    position_alpha:    float = 0.5,
-    M:                 float = 0.0,
-    omega_nominal:     float = 50.0,
-    generation_kw                = 0.0,
-    rho_agents:        float = 0.0,   # correlation of forecast errors across agents
-    forecast_error_sigma_kw: float = 5.0,
-    price_sigma:       float = 0.0,
-    network:           Network | None = None,
+    load_profiles_kw: np.ndarray,
+    prices: np.ndarray | None,
+    batteries: list[Battery],
+    controller,
+    network: Network,
+    dt_hours: float = 1.0,
+    low_threshold: float = 30.0,
+    high_threshold: float = 70.0,
+    feeder_limit_kw: float = 60.0,
+    rho_agents: float = 0.0,
+    forecast_error_sigma_kw: float = 1.0,
+    price_sigma: float = 0.0,
+    pv_kw: np.ndarray | None = None,
+    export_limit_kw: float | None = None,
+    price_rule: str = "fixed",
+    grid_price: float = 80.0,
+    feed_in_price: float = 20.0,
 ) -> SimulationResult:
+    """Run one day.
+
+    Paper mode (defaults): pv_kw=None, price_rule="fixed".
+        The feeder sees load minus battery only; prices are given in advance.
+
+    Community mode: pass pv_kw, and optionally price_rule="sdr".
+        The feeder sees load - PV - battery, so charging during PV surplus
+        relieves the feeder instead of loading it.
+        With "sdr" the price is set each step by community supply/demand,
+        using the batteries' actions from the previous step (feedback).
     """
-    Simulate one battery fleet under a shared or per-battery controller.
-
-    controller: either a single callable (all batteries use the same),
-                or a list of callables (one per battery, for mixed fleet).
-
-    All other parameters unchanged from Phase 1-4.
-    """
-
     n_steps, n_batteries = load_profiles_kw.shape
-
-    if positions is None:
-        positions = [0.0] * n_batteries
 
     if not 0.0 <= rho_agents <= 1.0:
         raise ValueError("rho_agents must be in [0, 1]")
-    if forecast_error_sigma_kw < 0.0:
-        raise ValueError("forecast_error_sigma_kw must be non-negative")
-    if price_sigma < 0.0:
-        raise ValueError("price_sigma must be non-negative")
+    if price_rule not in ("fixed", "sdr"):
+        raise ValueError("price_rule must be 'fixed' or 'sdr'")
+    if price_rule == "fixed" and prices is None:
+        raise ValueError("price_rule='fixed' needs prices")
+    if price_rule == "sdr" and pv_kw is None:
+        raise ValueError("price_rule='sdr' needs pv_kw")
 
-    # Normalise controller to a list — one entry per battery
-    if callable(controller):
-        controllers = [controller] * n_batteries
-    else:
-        controllers = list(controller)
+    controllers = [controller] * n_batteries if callable(controller) else list(controller)
+    pv = np.zeros(n_steps) if pv_kw is None else np.asarray(pv_kw, dtype=float)
+    pv_per_house = pv / n_batteries
+    export_limit = feeder_limit_kw if export_limit_kw is None else export_limit_kw
 
-    # Normalise generation to per-timestep array
-    if np.isscalar(generation_kw):
-        generation_array = np.full(n_steps, float(generation_kw))
-    else:
-        generation_array = np.asarray(generation_kw, dtype=float)
+    # Correlated perception noise: sqrt(rho)*Z(t) + sqrt(1-rho)*eps_i(t).
+    # Drawn in this order so the paper's random numbers are unchanged.
+    Z = np.random.normal(0, 1, n_steps)
+    eps = np.random.normal(0, 1, (n_steps, n_batteries))
+    noise = (np.sqrt(rho_agents) * Z[:, None] + np.sqrt(1 - rho_agents) * eps)
+    noise *= forecast_error_sigma_kw
 
-    # Correlated noise decomposition
-    # noise_i(t) = sqrt(rho) * Z(t) + sqrt(1-rho) * eps_i(t)
-    # Z(t) = common shock shared by all agents
-    # eps_i(t) = private noise, independent across agents
-    Z = np.random.normal(0, 1, n_steps)                  # common shock
-    eps = np.random.normal(0, 1, (n_steps, n_batteries)) # private noise
-    correlated_noise = (
-        np.sqrt(rho_agents) * Z[:, None]
-        + np.sqrt(1 - rho_agents) * eps
-    )
-    correlated_noise *= forecast_error_sigma_kw
-
-    aggregate_load            = np.zeros(n_steps)
-    aggregate_battery_kw      = np.zeros(n_steps)
-    per_battery_power_history = np.zeros((n_steps, n_batteries))
-    feeder_violations         = np.zeros(n_steps, dtype=bool)
-    per_battery_curtailment = np.zeros(n_batteries)
-    per_battery_requested   = np.zeros(n_batteries)
-    omega_history           = np.zeros(n_steps)
-
-    prev_actions   = np.zeros(n_batteries)
-    omega          = omega_nominal
-    prev_imbalance = 0.0
+    power = np.zeros((n_steps, n_batteries))
+    feeder_net = np.zeros(n_steps)
+    price_hist = np.zeros(n_steps)
+    prev_actions = np.zeros(n_batteries)
 
     for t in range(n_steps):
+        load_t = load_profiles_kw[t]
 
-        if M > 0.0:
-            omega += (dt_hours / M) * prev_imbalance
-            omega  = float(np.clip(omega, omega_nominal - 5.0, omega_nominal + 5.0))
-        omega_history[t] = omega
-
-        base_load_kw    = float(load_profiles_kw[t].sum())
-        battery_powers: list[float] = []
-
-        for i, battery in enumerate(batteries):
-
-            if network is not None:
-                neighbour_idx = network.agents[i].neighbors
-            else:
-                neighbour_idx = [(i + j) % n_batteries for j in range(1, neighborhood_size + 1)]
-
-            neighbor_avg_kw = (
-                float(np.mean(prev_actions[neighbour_idx]))
-                if len(neighbour_idx) > 0
-                else 0.0
-            )
-            local_limit_kw    = feeder_limit_kw * (1.0 - positions[i] * position_alpha)
-            perceived_load_kw = base_load_kw
-            perceived_price   = float(prices[t]) + float(correlated_noise[t, i]) * price_sigma
-
-            requested_kw = controllers[i](
-                price           = perceived_price,
-                low_threshold   = low_threshold,
-                high_threshold  = high_threshold,
-                max_power_kw    = battery.max_charge_kw,
-                soc             = battery.soc,
-                feeder_load_kw  = perceived_load_kw,
-                feeder_limit_kw = local_limit_kw,
-                neighbor_avg_kw = neighbor_avg_kw,
-                omega           = omega,
-                omega_nominal   = omega_nominal,
-            )
-
-            actual_kw = battery.apply_power(requested_kw, dt_hours)
-            battery_powers.append(actual_kw)
-
+        # 1. Price for this step.
+        if price_rule == "fixed":
             price_t = float(prices[t])
-            if price_t <= low_threshold:
-                tou_desire_kw = -battery.max_charge_kw
-            elif price_t >= high_threshold:
-                tou_desire_kw = battery.max_discharge_kw
-            else:
-                tou_desire_kw = 0.0
+        else:
+            house_net = load_t - pv_per_house[t] - prev_actions  # > 0 imports
+            supply = float(np.sum(np.maximum(0.0, -house_net)))
+            demand = float(np.sum(np.maximum(0.0, house_net)))
+            price_t = sdr_price(supply, demand, grid_price, feed_in_price)
+        price_hist[t] = price_t
 
-            if tou_desire_kw < 0.0:
-                desired_energy   = abs(tou_desire_kw) * dt_hours
-                delivered_energy = max(0.0, -actual_kw) * dt_hours
-                curtailed_energy = max(0.0, desired_energy - delivered_energy)
-                per_battery_requested[i]   += desired_energy
-                per_battery_curtailment[i] += curtailed_energy
+        # 2. Each battery decides on its own noisy view of the price.
+        perceived_feeder_kw = float(load_t.sum() - pv[t])
+        actions = np.zeros(n_batteries)
+        for i, battery in enumerate(batteries):
+            nbrs = network.agents[i].neighbors
+            neighbor_avg_kw = float(np.mean(prev_actions[nbrs])) if nbrs else 0.0
+            requested_kw = controllers[i](
+                price=price_t + float(noise[t, i]) * price_sigma,
+                low_threshold=low_threshold,
+                high_threshold=high_threshold,
+                max_power_kw=battery.max_charge_kw,
+                soc=battery.soc,
+                feeder_load_kw=perceived_feeder_kw,
+                feeder_limit_kw=feeder_limit_kw,
+                neighbor_avg_kw=neighbor_avg_kw,
+                agent_id=i,
+                t=t,
+            )
+            actions[i] = battery.apply_power(requested_kw, dt_hours)
 
-        per_battery_power_history[t, :] = np.array(battery_powers)
-        prev_actions     = np.array(battery_powers)
-        total_battery_kw = float(sum(battery_powers))
-        feeder_load_kw   = base_load_kw - total_battery_kw
+        # 3. Feeder flow after the batteries act.
+        power[t] = actions
+        prev_actions = actions
+        feeder_net[t] = load_t.sum() - pv[t] - actions.sum()
 
-        aggregate_load[t]       = feeder_load_kw
-        aggregate_battery_kw[t] = total_battery_kw
-        feeder_violations[t]    = feeder_load_kw > feeder_limit_kw
-
-        prev_imbalance = float(generation_array[t]) + total_battery_kw - base_load_kw
+    import_viol = feeder_net > feeder_limit_kw
+    export_viol = feeder_net < -export_limit if pv_kw is not None else np.zeros(n_steps, bool)
 
     return SimulationResult(
-        aggregate_load_kw           = aggregate_load,
-        aggregate_battery_power_kw  = aggregate_battery_kw,
-        per_battery_power_kw        = per_battery_power_history,
-        feeder_violations           = feeder_violations,
-        per_battery_curtailment_kwh = per_battery_curtailment,
-        per_battery_requested_kwh   = per_battery_requested,
-        omega_hz                    = omega_history,
+        per_battery_power_kw=power,
+        aggregate_battery_power_kw=power.sum(axis=1),
+        feeder_net_kw=feeder_net,
+        feeder_violations=import_viol | export_viol,
+        import_violations=import_viol,
+        export_violations=export_viol,
+        price=price_hist,
     )
-
-
-# ---------------------------------------------------------------------------
-# Metric helpers — Phases 1–3
-# ---------------------------------------------------------------------------
-
-def compute_peak_kw(aggregate_load_kw: np.ndarray) -> float:
-    return float(np.max(aggregate_load_kw))
-
-def compute_max_ramp_kw(aggregate_load_kw: np.ndarray) -> float:
-    if len(aggregate_load_kw) < 2:
-        return 0.0
-    return float(np.max(np.abs(np.diff(aggregate_load_kw))))
-
-def count_feeder_violations(feeder_violations: np.ndarray) -> int:
-    return int(np.sum(feeder_violations))
-
-def compute_total_feeder_excess_kw(
-    aggregate_load_kw: np.ndarray,
-    feeder_limit_kw:   float,
-) -> float:
-    return float(np.sum(np.maximum(0.0, aggregate_load_kw - feeder_limit_kw)))
-
-
-# ---------------------------------------------------------------------------
-# Metric helpers — Phase 4
-# ---------------------------------------------------------------------------
-
-def compute_frequency_nadir(omega_hz: np.ndarray) -> float:
-    return float(np.min(omega_hz))
-
-def compute_frequency_peak(omega_hz: np.ndarray) -> float:
-    return float(np.max(omega_hz))
-
-def compute_frequency_recovery_time(
-    omega_hz:      np.ndarray,
-    omega_nominal: float = 50.0,
-    tolerance:     float = 0.1,
-    dt_hours:      float = 1.0,
-) -> float:
-    recovered = np.where(np.abs(omega_hz - omega_nominal) <= tolerance)[0]
-    if len(recovered) == 0:
-        return float(len(omega_hz)) * dt_hours
-    return float(recovered[0]) * dt_hours
-
-def compute_frequency_std(omega_hz: np.ndarray) -> float:
-    return float(np.std(omega_hz))

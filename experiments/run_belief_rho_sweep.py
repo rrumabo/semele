@@ -110,7 +110,6 @@ def w1_curve(topology_factory, belief_weight: float):
             forecast_error_sigma_kw=FORECAST_ERROR_SIGMA_KW,
             price_sigma=PRICE_SIGMA,
             network=network,
-            generation_kw=pv_kw,
         )
 
         w1, PR, _ = spectral_diagnostics(

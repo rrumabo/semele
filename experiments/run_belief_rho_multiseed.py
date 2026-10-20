@@ -92,7 +92,6 @@ def w1_for_cell(topology_factory, belief_weight: float, rho: float, noise_seed: 
         forecast_error_sigma_kw=FORECAST_ERROR_SIGMA_KW,
         price_sigma=PRICE_SIGMA,
         network=network,
-        generation_kw=_PV,
     )
     w1, _, _ = spectral_diagnostics(result.per_battery_power_kw, subtract_mean=SUBTRACT_MEAN)
     return w1

@@ -70,7 +70,7 @@ def u1_for(topology_factory, rho):
         low_threshold=LOW_PRICE, high_threshold=HIGH_PRICE,
         feeder_limit_kw=FEEDER_LIMIT_KW, rho_agents=float(rho),
         forecast_error_sigma_kw=FORECAST_ERROR_SIGMA_KW, price_sigma=PRICE_SIGMA,
-        network=network, generation_kw=_PV,
+        network=network,
     )
     # subtract_mean=False so u1 reflects the actual dominant spatial mode,
     # including the common component.

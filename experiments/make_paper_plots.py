@@ -96,7 +96,6 @@ def _run_trajectory(topology_factory, rho: float) -> np.ndarray:
         forecast_error_sigma_kw=FORECAST_ERROR_SIGMA_KW,
         price_sigma=PRICE_SIGMA,
         network=network,
-        generation_kw=_PV_KW,
     )
     return result.per_battery_power_kw
 

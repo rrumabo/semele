@@ -96,7 +96,6 @@ def collect_trajectories(topology_name: str, topology_factory):
             forecast_error_sigma_kw=FORECAST_ERROR_SIGMA_KW,
             price_sigma=PRICE_SIGMA,
             network=network,
-            generation_kw=pv_kw,
         )
 
         trajectories[float(rho)] = result.per_battery_power_kw   # (T, N)

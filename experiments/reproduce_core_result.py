@@ -33,6 +33,7 @@ import pandas as pd
 from semele.battery import Battery
 from semele.controllers import belief_neighborhood_controller
 from semele.network import Network, make_linear, make_small_world, make_star
+from semele.pricing import pv_shaped_price
 from semele.simulator import run_simulation
 
 
@@ -67,8 +68,6 @@ HIGH_PRICE = 70.0
 FORECAST_ERROR_SIGMA_KW = 1.0
 PRICE_SIGMA = 20.0
 
-NETWORK_ALPHA = 0.1
-NETWORK_K = 0.2
 
 TOPOLOGIES = ("linear", "star", "small_world")
 
@@ -147,9 +146,7 @@ def make_price_signal(pv_kw: np.ndarray) -> np.ndarray:
 
     Price is low when PV is high, encouraging batteries to charge during solar surplus.
     """
-    pv_norm = pv_kw / max(float(np.max(pv_kw)), 1e-9)
-    prices = 80.0 - 60.0 * pv_norm
-    return prices
+    return pv_shaped_price(pv_kw)
 
 
 # ---------------------------------------------------------------------
@@ -177,20 +174,14 @@ def build_topologies() -> dict[str, Callable[[], Network]]:
     factories: dict[str, Callable[[], Network]] = {
         "linear": lambda: make_linear(
             N_BATTERIES,
-            k=NETWORK_K,
-            alpha=NETWORK_ALPHA,
         ),
         "star": lambda: make_star(
             N_BATTERIES,
-            k=NETWORK_K,
-            alpha=NETWORK_ALPHA,
         ),
         "small_world": lambda: make_small_world(
             N_BATTERIES,
             k_nn=4,
             p=0.1,
-            k=NETWORK_K,
-            alpha=NETWORK_ALPHA,
             seed=MASTER_SEED,
         ),
     }
@@ -348,8 +339,6 @@ def make_summary_payload(summary: pd.DataFrame) -> dict:
             "high_price": HIGH_PRICE,
             "forecast_error_sigma_kw": FORECAST_ERROR_SIGMA_KW,
             "price_sigma": PRICE_SIGMA,
-            "network_alpha": NETWORK_ALPHA,
-            "network_k": NETWORK_K,
         },
         "headline_by_topology": headline_by_topology,
         "outputs": {
@@ -472,7 +461,6 @@ def main() -> None:
                     forecast_error_sigma_kw=FORECAST_ERROR_SIGMA_KW,
                     price_sigma=PRICE_SIGMA,
                     network=network,
-                    generation_kw=pv_kw,
                 )
 
                 sync = synchronization_index(result.per_battery_power_kw)

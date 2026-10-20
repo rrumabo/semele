@@ -48,8 +48,6 @@ from experiments.reproduce_core_result import (
     HIGH_PRICE,
     FORECAST_ERROR_SIGMA_KW,
     PRICE_SIGMA,
-    NETWORK_K,
-    NETWORK_ALPHA,
 )
 from semele.network import make_linear
 from semele.controllers import belief_neighborhood_controller
@@ -72,7 +70,7 @@ _LOAD = make_load_profiles(
 
 # One fixed graph. All three replicas use THIS SAME structure.
 def _linear():
-    return make_linear(N_BATTERIES, k=NETWORK_K, alpha=NETWORK_ALPHA)
+    return make_linear(N_BATTERIES)
 
 REPLICAS = ["A", "B", "C"]   # same graph, different noise seeds
 
@@ -97,7 +95,6 @@ def w1_for_cell(belief_weight, rho, noise_seed):
         forecast_error_sigma_kw=FORECAST_ERROR_SIGMA_KW,
         price_sigma=PRICE_SIGMA,
         network=network,
-        generation_kw=_PV,
     )
     w1, _, _ = spectral_diagnostics(result.per_battery_power_kw, subtract_mean=SUBTRACT_MEAN)
     return w1
