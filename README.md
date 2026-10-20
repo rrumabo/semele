@@ -1,228 +1,125 @@
-# Semele
+# Lampyris
 
-**Semele** is a small computational research project about a simple question:
+A small simulator of home batteries that all respond to the same noisy price signal.
 
-> When a decentralized fleet of batteries is driven by the same noisy forecast signal, can the shared noise dominate the collective dynamics so strongly that the communication topology becomes hard to detect?
+The question:
 
-The short answer explored here is **yes**.
+> When every battery in a street reacts to the same forecast, and the forecast errors are correlated, what does the fleet do together — and does the communication network between them still matter?
 
-The project studies decentralized battery agents connected through different communication graphs — linear, star, and small-world — while they respond to a shared PV-derived price / forecast signal. The main observation is that the fleet’s collective trajectory can collapse onto a low-dimensional consensus-like mode. When that happens, changing the communication topology does not visibly change the effective dimensionality of the fleet response.
+The repository is called **Lampyris**. The Python package inside it is called **`semele`**.
 
-This does **not** mean topology has no effect. It means that, in this regime, topology-dependent modes are masked by a stronger common stochastic component.
+---
 
-## The idea
+## 1. Published result
 
-In many decentralized energy systems, agents are treated as independent local decision makers. But in practice they often depend on the same external information sources:
+**Paper:** S. Savva, *When a common price signal is present, network topology leaves no fingerprint on a storage fleet's collective dynamics*, arXiv:2607.06381 (nlin.CD), July 2026.
 
-- the same PV forecast,
-- the same price signal,
-- the same market estimate,
-- the same feeder-level prediction,
-- or the same forecasting provider.
+**Setup**
 
-If the forecast errors are correlated, the agents are no longer independent in the way the model might assume. They can move together, not because they communicate perfectly, but because they are all being pushed by the same wrong signal.
+Each battery sees the price through its own forecast error:
 
-Semele tests this mechanism in a battery-fleet simulator.
-
-The central mechanism is:
-
-```text
-shared forecast error
-        ↓
-common forcing of all agents
-        ↓
-dominant consensus-mode motion
-        ↓
-low effective dimensionality
-        ↓
-weak observable topology effect
+```
+eps_i(t) = sqrt(rho) * Z(t) + sqrt(1 - rho) * eta_i(t)
 ```
 
-## Why “Semele”?
+- `Z` is shared by everyone.
+- `eta_i` is private to each battery.
+- `rho` is the correlation between any two batteries' errors.
 
-In Greek mythology, Semele is destroyed when she sees Zeus in his full divine form. The metaphor here is not that topology disappears because it is fake. It disappears from observation because a stronger force overwhelms it.
+**Key fact**
 
-In this project:
+The mean error does not average away:
 
-```text
-Semele    → topology-dependent structure
-Zeus      → shared stochastic forcing
+```
+Var(mean error) = (sigma^2 / N) * [1 + (N - 1) * rho]  ->  rho * sigma^2   as N -> infinity
 ```
 
-The topology is still there. It is just outpowered in the measured collective response.
+**Lemma (linearised fleet)**
 
-## What is measured?
+The shared part of the error drives only the consensus mode `1/sqrt(N)` of the graph Laplacian. No wiring can change that mode, so the topology's share of the dynamics is O(1/(rho N)).
 
-The simulator records the per-agent battery power trajectory and stacks it into a matrix:
+**Measured** (20 batteries; linear, star and small-world graphs)
 
-```text
-X ∈ R^(time × agents)
+| | rho = 0 | rho = 1 |
+|---|---|---|
+| `w1` (energy in the dominant mode) | 0.43–0.44 | 0.963 |
+| `PR` (effective number of modes) | 4.3–4.4 | 1.08 |
+| alignment of the dominant mode with `1/sqrt(N)` | 0.96 | 0.998 |
+
+- The three topologies give one curve. The change from rho = 0 to rho = 1 is a smooth crossover, not a phase transition.
+- Between-topology spread is 0.0043 (alpha = 0.5) and 0.0181 (alpha = 0). Both are below the same-graph noise floor of about 0.03, measured over 30 seeds with independent noise per replica.
+
+**What did not survive**
+
+An earlier version of this project claimed a *collapse threshold* near rho ≈ 0.84. The core sweep falsified it. Feeder violations rise smoothly with rho, with no knee and no bimodality. Correlation is a continuous risk dial, not a cliff.
+
+## 2. Current work: a PV energy community (on trial)
+
+`experiments/run_community.py` puts the same fleet in a street with rooftop PV:
+
+- **PV counted in the feeder.** The flow is `load − PV − battery`. Charging during a solar surplus relieves the feeder instead of loading it. Import and export limits are both checked.
+- **Two price rules:**
+  - `fixed`: the paper's rule, set in advance from the PV shape.
+  - `sdr`: a local price set every hour by the street's own supply and demand (the supply–demand-ratio mechanism of Liu et al., 2017), using the batteries' actions from the previous hour.
+- **Realistic rho.** Houses under the same clouds make rho high, so the sweep covers 0.7–1, plus 0 as a reference.
+- **Battery size** is swept at 3, 5, 7 and 10 kW per house against a 6 kW per-house feeder limit.
+
+**First results (synthetic data, 100 runs per condition)**
+
+- **Fixed price.** 3–5 kW batteries cause almost no violations. At 7–10 kW, violations appear from rho ≈ 0.7 and rise smoothly. At 10 kW and rho = 1, the batteries cause violations in 19% of hours.
+- **SDR price.**
+  - The peak is unchanged, but the price flip-flops 80 → 20 → 80 from hour to hour, even at rho = 0.
+  - The mechanism: discharging counts as supply, the price drops, everyone charges, the price rises, and the cycle repeats.
+  - The oscillation grows with battery size, not with rho. At 5 kW, the battery-caused violations rise from 0.7% to 18.5%.
+  - **Open:** this rests on two modelling choices, a one-hour price lag and an all-or-nothing controller. Whether it survives a same-hour clearing or a proportional controller is the next test.
+
+## 3. Repository
+
 ```
-
-The project then studies the singular spectrum of this trajectory.
-
-Two diagnostics are used:
-
-- `w1`: the fraction of trajectory variance carried by the dominant mode.
-- `PR`: the spectral participation ratio, interpreted as an effective dimensionality.
-
-When `w1 → 1` and `PR → 1`, the fleet is effectively moving along one dominant collective direction.
-
-That is the signature of common-mode domination.
-
-## Core claim
-
-The claim is narrow:
-
-> Under shared stochastic forecast forcing, topology-dependent modes can become observationally weak because the dominant variance is injected into the graph-invariant consensus mode.
-
-This is not a design claim saying “do not build communication networks.”
-
-It is a detectability claim:
-
-> If many agents share the same noisy information source, then changing the communication graph may matter less than reducing the correlation of the forecast errors.
-
-## Repository structure
-
-```text
 src/semele/
-  battery.py
-  controllers.py
-  network.py
-  simulator.py
+  battery.py       battery with power, energy and efficiency limits
+  controllers.py   TOU controller + the paper's belief/neighbour hybrid
+  network.py       information graph (linear, star, small world) + Laplacian
+  pricing.py       fixed PV-shaped price and SDR local price
+  simulator.py     one day of the fleet behind one feeder
 
 experiments/
-  reproduce_core_result.py
-  run_belief_rho_sweep.py
-  run_belief_rho_multiseed.py
-  run_spectral_sweep.py
-  check_consensus_mode.py
-  run_null_topology_test.py
-  spectral_diagnostics.py
-  make_paper_plots.py
+  reproduce_core_result.py     rho sweep: peaks, violations, curtailment
+  make_paper_plots.py          paper figures 1 and 2
+  check_consensus_mode.py      dominant mode vs 1/sqrt(N)
+  run_null_topology_test.py    same-graph noise floor
+  run_belief_rho_sweep.py      2D sweep over rho and alpha
+  run_belief_rho_multiseed.py  the same, over 30 seeds
+  run_spectral_sweep.py        w1 / PR along rho
+  spectral_diagnostics.py      SVD measures w1 and PR
+  run_community.py             PV community: price rules x battery size x rho
+
+explanations/      a plain-language walkthrough of every code file
 ```
 
-Generated outputs are written to:
-
-```text
-results/
-```
-
-The `results/` directory is ignored by git. Figures and CSVs should be regenerated from the scripts.
-
-## Setup
+## 4. Run
 
 From the repository root:
 
 ```bash
-python3 -m pip install -r requirements.txt
-python3 -m pip install -e .
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
+
+python -m experiments.make_paper_plots      # results/paper/  (png + csv)
+python -m experiments.run_community         # results/community/  (about 1 min)
 ```
 
-If you do not want to install the package in editable mode, use:
+Run scripts as modules (`python -m experiments.…`), because they import from each other. Outputs go to `results/`, which is not tracked by git.
 
-```bash
-PYTHONPATH=src python3 -m experiments.make_paper_plots
-```
+## 5. Limits
 
-## Reproduce the paper figures
-
-```bash
-PYTHONPATH=src python3 -m experiments.make_paper_plots
-```
-
-This writes the paper figures to:
-
-```text
-results/paper/
-```
-
-Expected outputs include:
-
-```text
-results/paper/fig1_w1_vs_rho.png
-results/paper/fig1_w1_vs_rho.pdf
-results/paper/fig2_consensus_alignment.png
-results/paper/fig2_consensus_alignment.pdf
-```
-
-## Main experiments
-
-Run the rho sweep:
-
-```bash
-PYTHONPATH=src python3 -m experiments.run_belief_rho_sweep
-```
-
-Run the multi-seed version:
-
-```bash
-PYTHONPATH=src python3 -m experiments.run_belief_rho_multiseed
-```
-
-Run the spectral diagnostics:
-
-```bash
-PYTHONPATH=src python3 -m experiments.run_spectral_sweep
-```
-
-Check direct consensus-mode alignment:
-
-```bash
-PYTHONPATH=src python3 -m experiments.check_consensus_mode
-```
-
-Run the null topology test:
-
-```bash
-PYTHONPATH=src python3 -m experiments.run_null_topology_test
-```
-
-## How to read the experiments
-
-The important comparison is not just:
-
-```text
-linear vs star vs small-world
-```
-
-The important comparison is:
-
-```text
-topology-induced variation
-vs
-noise-realization-induced variation
-```
-
-If redrawing the forecast noise changes the dominant-mode fraction more than changing the graph, then topology is below the observable noise floor for this diagnostic.
-
-That is the Semele effect.
-
-## What this project is not
-
-This is not a full grid model.
-
-It does not include:
-
-- AC power flow,
-- market clearing,
-- distribution constraints,
-- transformer thermal dynamics,
-- real Cyprus grid data,
-- or real battery fleet telemetry.
-
-The simulator is intentionally small. Its purpose is to isolate one mechanism:
-
-```text
-shared stochastic forcing can dominate topology-dependent collective dynamics
-```
-
-## Status
-
-Research prototype.
-
-The code is intended to reproduce the experiments and figures behind the Semele note, not to serve as a production-grade battery dispatch simulator.
+- **Synthetic profiles.** These are not real Cyprus data: one day of PV and load, 20 houses, hourly steps.
+- **No AC power flow.** The feeder is a single import/export limit.
+- **Rule-based controllers.** These are not optimising controllers.
+- **The SDR mechanism** is implemented from the published formula, with a one-step lag. It is not tested against a real community's clearing.
 
 ## License
 
-See `LICENSE`.
+MIT. See `LICENSE`.
